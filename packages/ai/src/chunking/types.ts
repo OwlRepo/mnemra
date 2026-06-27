@@ -1,10 +1,16 @@
+export type ChunkStrategy = 'recursive' | 'markdown' | 'section-aware'
+
 export interface Chunk {
   content: string
+  contentHash: string
   metadata: {
     source: string
     fileType: string
     chunkIndex: number
     totalChunks: number
+    strategy: ChunkStrategy
+    sectionId?: string
+    sectionTitle?: string
     tenantId?: string
     knowledgeBaseId?: string
     documentId?: string
@@ -13,6 +19,7 @@ export interface Chunk {
 }
 
 export interface ChunkOptions {
-  chunkSize?: number   // max tokens per chunk (default: 512)
-  chunkOverlap?: number // tokens shared between adjacent chunks (default: 50)
+  chunkSize?: number
+  chunkOverlap?: number
+  strategy?: ChunkStrategy
 }

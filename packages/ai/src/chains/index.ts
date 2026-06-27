@@ -1,19 +1,47 @@
 import { ChatOpenAI } from '@langchain/openai'
-import { RunnableSequence } from '@langchain/core/runnables'
+import { SystemMessage, HumanMessage } from '@langchain/core/messages'
+import { similaritySearch } from '../vectorstore'
 
 const llm = new ChatOpenAI({
-  modelName: 'gpt-4-turbo',
+  modelName: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4-turbo',
   temperature: 0,
+  streaming: true,
 })
 
-export async function buildRetrievalChain() {
-  // TODO: Build a retrieval-augmented generation chain
-  // 1. Create a retrieval step using similaritySearch
-  // 2. Format context into prompt
-  // 3. Pass to LLM
-  // 4. Return chain that can be invoked with { question, tenantId }
-  
-  throw new Error('Not implemented')
+const SYSTEM_PROMPT = `You are a helpful support assistant.
+Answer questions using ONLY the context provided below.
+If the answer is not in the context, say: "I don't have enough information to answer that."
+Be concise, accurate, and do not make up information.`
+
+function buildContext(chunks: Awaited<ReturnType<typeof similaritySearch>>): string {
+  if (chunks.length === 0) return ''
+  return chunks.map(c => c.content).join('\n---\n')
 }
 
-export { llm }
+export async function* askQuestion(
+  question: string,
+  tenantId: string,
+  limit = 5
+): AsyncGenerator<string> {
+  const chunks = await similaritySearch(question, tenantId, limit)
+
+  if (chunks.length === 0) {
+    yield "I don't have enough information to answer that."
+    return
+  }
+
+  const context = buildContext(chunks)
+
+  // llm.stream() is auto-traced by LangSmith when LANGSMITH_TRACING=true
+  const stream = await llm.stream([
+    new SystemMessage(SYSTEM_PROMPT),
+    new HumanMessage(`Context:\n${context}\n\nQuestion: ${question}`),
+  ])
+
+  for await (const chunk of stream) {
+    const token = chunk.content
+    if (typeof token === 'string' && token.length > 0) {
+      yield token
+    }
+  }
+}

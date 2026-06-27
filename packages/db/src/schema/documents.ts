@@ -6,7 +6,9 @@ export const documents = pgTable('documents', {
   tenantId: uuid('tenant_id').references(() => tenants.id).notNull(),
   title: varchar('title', { length: 500 }).notNull(),
   sourceUrl: text('source_url'),
+  contentHash: varchar('content_hash', { length: 64 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
 export type Document = typeof documents.$inferSelect

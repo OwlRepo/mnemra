@@ -1,10 +1,18 @@
-export function withLangSmith<T extends (...args: any[]) => any>(
+import { traceable } from 'langsmith/traceable'
+
+export const tracingEnabled =
+  process.env.LANGSMITH_TRACING === 'true' ||
+  process.env.LANGCHAIN_TRACING_V2 === 'true'
+
+export function withTracing<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
-  metadata?: Record<string, any>
+  name: string,
+  metadata?: Record<string, unknown>
 ): T {
-  // TODO: Implement LangSmith tracing wrapper
-  // Use LANGSMITH_API_KEY and LANGSMITH_PROJECT from env
-  // Wrap function calls with LangSmith tracing
-  
-  return fn
+  if (!tracingEnabled) return fn
+
+  return traceable(fn, {
+    name,
+    metadata,
+  }) as T
 }
