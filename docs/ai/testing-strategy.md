@@ -41,6 +41,11 @@ Confirmed from `apps/api/package.json` as of 2026-06-28:
 - `bun run test:e2e` — Jest e2e tests (`apps/api/test/**/*.e2e-spec.ts`), boots a real `AppModule` instance and hits it with Supertest
 - `bun run type-check` — `tsc --noEmit`
 
+Storage integration note as of 2026-06-30:
+- `apps/api/src/storage/storage.service.spec.ts` is a real integration test against an S3-compatible endpoint.
+- Expected local dependency: SeaweedFS at `S3_ENDPOINT=http://localhost:8333`.
+- The spec is skipped when `S3_ENDPOINT` is absent so non-storage environments can still run the rest of the API suite.
+
 Confirmed from `apps/web/package.json` as of 2026-06-29:
 
 - `bun run test` — Vitest, runs once (`apps/web/**/*.spec.ts`, node environment, config at `vitest.config.mts` — must be `.mts` not `.ts`, see note below)

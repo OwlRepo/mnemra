@@ -1,10 +1,30 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import cookieParser from 'cookie-parser'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import request from 'supertest'
-import { db, otps, pool, refreshTokens, users } from '@repo/db'
+import { db, otps, pool, refreshTokens, users, workspaceMembers, workspaces } from '@repo/db'
 import { AppModule } from '../src/app.module'
+
+async function cleanupUser(email: string) {
+  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+  if (!user) return
+
+  const memberships = await db
+    .select({ workspaceId: workspaceMembers.workspaceId })
+    .from(workspaceMembers)
+    .where(eq(workspaceMembers.userId, user.id))
+
+  await db.delete(refreshTokens).where(eq(refreshTokens.userId, user.id))
+  await db.delete(otps).where(eq(otps.userId, user.id))
+  await db.delete(workspaceMembers).where(eq(workspaceMembers.userId, user.id))
+
+  for (const membership of memberships) {
+    await db.delete(workspaces).where(and(eq(workspaces.id, membership.workspaceId), eq(workspaces.ownerId, user.id)))
+  }
+
+  await db.delete(users).where(eq(users.id, user.id))
+}
 
 describe('Auth flow (e2e)', () => {
   let app: INestApplication
@@ -20,12 +40,7 @@ describe('Auth flow (e2e)', () => {
   })
 
   afterAll(async () => {
-    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
-    if (user) {
-      await db.delete(refreshTokens).where(eq(refreshTokens.userId, user.id))
-      await db.delete(otps).where(eq(otps.userId, user.id))
-      await db.delete(users).where(eq(users.id, user.id))
-    }
+    await cleanupUser(email)
     await app.close()
     await pool.end()
   })
@@ -91,12 +106,7 @@ describe('Auth flow (e2e)', () => {
       await request(app.getHttpServer()).post('/auth/logout').set('Cookie', cookie).expect(200)
       await request(app.getHttpServer()).post('/auth/refresh').set('Cookie', cookie).expect(401)
     } finally {
-      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, logoutEmail)).limit(1)
-      if (user) {
-        await db.delete(refreshTokens).where(eq(refreshTokens.userId, user.id))
-        await db.delete(otps).where(eq(otps.userId, user.id))
-        await db.delete(users).where(eq(users.id, user.id))
-      }
+      await cleanupUser(logoutEmail)
     }
   })
 

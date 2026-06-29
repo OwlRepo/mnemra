@@ -7,6 +7,9 @@ import { DocumentsModule } from './documents/documents.module'
 import { IngestModule } from './ingest/ingest.module'
 import { ChatModule } from './chat/chat.module'
 import { AuthModule } from './auth/auth.module'
+import { WorkspacesModule } from './workspaces/workspaces.module'
+import { KnowledgeBasesModule } from './knowledge-bases/knowledge-bases.module'
+import { StorageModule } from './storage/storage.module'
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { AuthModule } from './auth/auth.module'
     IngestModule,
     ChatModule,
     AuthModule,
+    WorkspacesModule,
+    KnowledgeBasesModule,
+    StorageModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

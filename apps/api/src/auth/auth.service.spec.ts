@@ -3,16 +3,24 @@ import { Test } from '@nestjs/testing'
 import { JwtModule } from '@nestjs/jwt'
 import { ConfigModule } from '@nestjs/config'
 import { createHash } from 'crypto'
-import { eq } from 'drizzle-orm'
-import { db, pool, users, otps, refreshTokens } from '@repo/db'
+import { and, eq } from 'drizzle-orm'
+import { db, otps, pool, refreshTokens, users, workspaceMembers, workspaces } from '@repo/db'
 import { AuthService } from './auth.service'
 import { NotificationsService } from '../notifications/notifications.service'
 
 async function cleanupUser(email: string) {
   const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, email.toLowerCase())).limit(1)
   if (!user) return
+  const memberships = await db
+    .select({ workspaceId: workspaceMembers.workspaceId })
+    .from(workspaceMembers)
+    .where(eq(workspaceMembers.userId, user.id))
   await db.delete(refreshTokens).where(eq(refreshTokens.userId, user.id))
   await db.delete(otps).where(eq(otps.userId, user.id))
+  await db.delete(workspaceMembers).where(eq(workspaceMembers.userId, user.id))
+  for (const membership of memberships) {
+    await db.delete(workspaces).where(and(eq(workspaces.id, membership.workspaceId), eq(workspaces.ownerId, user.id)))
+  }
   await db.delete(users).where(eq(users.id, user.id))
 }
 
@@ -98,7 +106,7 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException)
     })
 
-    it('accepts the correct code with different email casing, and marks the user verified', async () => {
+    it('accepts the correct code with different email casing, marks the user verified, and auto-creates an owner workspace', async () => {
       const [otp] = await db.select().from(otps).where(eq(otps.userId, userId)).limit(1)
       const result = await service.verifyOtp({ email: email.toUpperCase(), code: otp.code })
 
@@ -107,6 +115,22 @@ describe('AuthService', () => {
 
       const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
       expect(user.isVerified).toBe(true)
+
+      const ownedWorkspaces = await db.select().from(workspaces).where(eq(workspaces.ownerId, userId))
+      expect(ownedWorkspaces).toHaveLength(1)
+      expect(ownedWorkspaces[0].name).toBe(`${email}'s workspace`)
+
+      const [membership] = await db
+        .select()
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, ownedWorkspaces[0].id),
+            eq(workspaceMembers.userId, userId),
+          ),
+        )
+        .limit(1)
+      expect(membership.role).toBe('owner')
     })
 
     it('rejects reusing an already-used code', async () => {

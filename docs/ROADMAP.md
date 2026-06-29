@@ -44,7 +44,7 @@ Button, Input, Card, Badge, Avatar, Separator, Skeleton, ChatBubble, Toast, Stat
 **DB schema (packages/db/src/schema/):**
 - `users` — id, email, passwordHash, isVerified, createdAt
 - `otps` — id, userId (FK), code, expiresAt, usedAt
-- `refresh_tokens` — id, userId (FK), token, expiresAt, revokedAt
+- `refresh_tokens` — id, userId (FK), tokenHash, expiresAt, revokedAt (SHA-256 hash stored, not raw token)
 - `workspaces` — id, name, ownerId (FK users), createdAt (NOTE: current `tenants` table maps to this concept — align or rename)
 - `workspace_members` — id, workspaceId (FK), userId (FK), role (owner|admin|member), joinedAt
 - `invitations` — id, workspaceId (FK), email, token, expiresAt, acceptedAt

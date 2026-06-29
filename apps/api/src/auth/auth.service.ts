@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config'
 import { eq, and, gt, isNull } from 'drizzle-orm'
 import * as bcrypt from 'bcrypt'
 import { createHash, randomBytes } from 'crypto'
-import { db, users, otps, refreshTokens } from '@repo/db'
+import { db, users, otps, refreshTokens, workspaceMembers, workspaces } from '@repo/db'
 import type { RegisterDto } from './dto/register.dto'
 import type { VerifyOtpDto } from './dto/verify-otp.dto'
 import type { LoginDto } from './dto/login.dto'
@@ -86,11 +86,26 @@ export class AuthService {
 
     if (!otp) throw new UnauthorizedException('Invalid or expired code')
 
-    await db.update(otps).set({ usedAt: now }).where(eq(otps.id, otp.id))
+    return db.transaction(async (tx) => {
+      await tx.update(otps).set({ usedAt: now }).where(eq(otps.id, otp.id))
+      await tx.update(users).set({ isVerified: true }).where(eq(users.id, user.id))
 
-    await db.update(users).set({ isVerified: true }).where(eq(users.id, user.id))
+      const [workspace] = await tx
+        .insert(workspaces)
+        .values({
+          name: `${user.email}'s workspace`,
+          ownerId: user.id,
+        })
+        .returning({ id: workspaces.id })
 
-    return this.issueTokens(db, user.id, user.email)
+      await tx.insert(workspaceMembers).values({
+        workspaceId: workspace.id,
+        userId: user.id,
+        role: 'owner',
+      })
+
+      return this.issueTokens(tx, user.id, user.email)
+    })
   }
 
   async login(dto: LoginDto): Promise<{ accessToken: string; refreshToken: string }> {

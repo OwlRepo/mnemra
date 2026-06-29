@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { accessCookie, forwardSetCookies } from '../../../../src/lib/http/set-cookie'
 
 const API_URL = process.env.API_URL || 'http://localhost:3001'
-const ACCESS_TOKEN_MAX_AGE = 60 * 15
 
 export async function POST(request: NextRequest) {
   const rtCookie = request.cookies.get('mnemra_rt')
@@ -16,18 +16,15 @@ export async function POST(request: NextRequest) {
 
   const data = await apiRes.json()
   const response = NextResponse.json(data, { status: apiRes.status })
+  const responseOk = (apiRes as Response & { ok?: boolean }).ok
+  const isSuccess = typeof responseOk === 'boolean'
+    ? responseOk
+    : apiRes.status >= 200 && apiRes.status < 300
 
-  const setCookie = apiRes.headers.get('set-cookie')
-  if (setCookie) response.headers.set('set-cookie', setCookie)
+  forwardSetCookies(response, apiRes)
 
-  if (apiRes.ok && data.accessToken) {
-    response.cookies.set('mnemra_at', data.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: ACCESS_TOKEN_MAX_AGE,
-    })
+  if (isSuccess && data.accessToken) {
+    response.headers.append('set-cookie', accessCookie(data.accessToken))
   }
 
   return response

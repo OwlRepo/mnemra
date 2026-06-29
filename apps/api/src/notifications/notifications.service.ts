@@ -30,4 +30,20 @@ export class NotificationsService {
       console.log(`[DEV OTP] ${email} → ${code}`)
     }
   }
+
+  async sendInvite(email: string, inviteUrl: string): Promise<void> {
+    if (this.resend) {
+      await this.resend.emails.send({
+        from: this.fromEmail,
+        to: email,
+        subject: "You're invited to a Mnemra workspace",
+        html: `
+          <p>You've been invited to join a Mnemra workspace.</p>
+          <p><a href="${inviteUrl}">Accept your invite</a></p>
+        `,
+      })
+    } else {
+      console.log('[DEV INVITE] ' + email + ' -> ' + inviteUrl)
+    }
+  }
 }

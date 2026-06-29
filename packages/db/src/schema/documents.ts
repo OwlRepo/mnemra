@@ -15,6 +15,7 @@ export const documents = pgTable('documents', {
   knowledgeBaseId: uuid('knowledge_base_id').references(() => knowledgeBases.id).notNull(),
   title: varchar('title', { length: 500 }).notNull(),
   sourceUrl: text('source_url'),
+  storageKey: text('storage_key'),
   contentHash: varchar('content_hash', { length: 64 }),
   status: documentStatusEnum('status').notNull().default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

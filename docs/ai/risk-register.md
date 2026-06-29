@@ -27,6 +27,7 @@ If risk area is missing, mark `UNMAPPED RISK`.
 | SMS Credits            | Resource billing, cost control               | Deep              | Credit balance invariants, tests       | Credit flow            | Verify against DB contracts              |
 | Plan Upgrades          | Subscription state, feature access           | Deep              | Plan state invariants, tests           | Upgrade/downgrade flow | Verify against DB contracts              |
 | Auth / Permissions     | Security, access control                     | Deep              | Auth flows, permission checks, tests   | Full auth flow         | Verify against auth middleware           |
+| Workspaces / RBAC      | Tenant boundary, member removal, invite misuse | Deep            | Membership invariants, guard order, tests | Invite/member flow  | Enforce RBAC server-side; keep ≥1 owner per workspace; single-use invite token with expiry |
 | Automations            | Background behavior, side effects            | Deep              | Job safety, idempotency, tests         | Automation trigger     | Verify against job queue contracts       |
 | Jobs                   | Background processing, retry logic           | Deep              | Queue safety, idempotency, tests       | Job execution          | Verify against job queue contracts       |
 | Webhooks               | External integrations, failure handling      | Deep              | Webhook safety, retry, tests           | Webhook flow           | Verify against integration contracts     |
@@ -34,3 +35,17 @@ If risk area is missing, mark `UNMAPPED RISK`.
 | Transactions           | Data consistency, atomicity                  | Deep              | Transaction boundaries, rollback       | Transactional flow     | Verify against DB contracts              |
 | External Integrations  | Third-party dependencies, failure modes      | Deep              | Error handling, retry, tests           | Integration flow       | Verify against integration documentation |
 | Production Deployment  | Availability, rollback, monitoring           | Deep              | Deploy safety, rollback plan           | Smoke test             | Verify against deployment docs           |
+
+## Current Notes
+
+- SeaweedFS / S3-compatible storage is a live external-integration risk as of Slice 3A.
+  Required checks:
+  - container comes up and S3 endpoint responds
+  - `StorageService.ensureBucket()` is idempotent
+  - save/get/delete round-trip passes against the real endpoint
+
+- Migration `0001_panoramic_spiral.sql` changes document storage semantics.
+  Required checks:
+  - `documents.storage_key` exists after apply
+  - `chunks.document_id` FK includes `ON DELETE CASCADE`
+  - rerunning schema generation shows no diff

@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "mnemra",
+      "credentials": [
+        {
+          "accessKey": "mnemra-local",
+          "secretKey": "mnemra-local-secret"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write"]
+    }
+  ]
+}

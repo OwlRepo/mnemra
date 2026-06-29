@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { accessCookie } from './src/lib/http/set-cookie'
 
 const API_URL = process.env.API_URL ?? 'http://localhost:3001'
-const ACCESS_TOKEN_MAX_AGE = 60 * 15 // 15 min — matches JWT_EXPIRY default
 
 /**
  * Calls the backend refresh endpoint directly.
@@ -48,13 +48,7 @@ export async function middleware(request: NextRequest) {
       response.headers.append('set-cookie', refreshed.rtSetCookie)
     }
     // Issue the new short-lived access token cookie
-    response.cookies.set('mnemra_at', refreshed.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: ACCESS_TOKEN_MAX_AGE,
-    })
+    response.headers.append('set-cookie', accessCookie(refreshed.accessToken))
     return response
   }
 

@@ -108,6 +108,29 @@ TODO: Fill after repository analysis. Do not treat as verified.
 
 TODO: Fill after repository analysis. Do not treat as verified.
 
+## Storage
+
+### Object Storage
+
+SeaweedFS is the current object storage backend for local development and production planning.
+
+- Local S3 endpoint: `http://localhost:8333`
+- Local filer UI: `http://localhost:8888`
+- Local master UI: `http://localhost:9333`
+- Bucket name: `mnemra-documents`
+
+SeaweedFS uses S3-compatible auth from env (`S3_*`) plus an identities JSON file mounted into the container.
+
+### Storage Service
+
+`apps/api/src/storage/storage.service.ts` owns object-storage access:
+- `ensureBucket()` on module init
+- `save(key, body, contentType?)`
+- `getToTempFile(key)` for downstream loader/ingest steps
+- `delete(key)`
+
+Slice 3A adds only infra + storage abstraction + schema groundwork. Upload and ingest behavior arrive in Slice 3B.
+
 ## Verification Commands
 
 ### Type Check

@@ -4,7 +4,7 @@
 
 ### Architecture
 Apps run on **host** with `bun run dev` → **instant hot reload**  
-Infrastructure runs in **Docker** → Postgres + Redis
+Infrastructure runs in **Docker** → Postgres + Redis + SeaweedFS
 
 **No Docker rebuilds needed when you change code!**
 
@@ -17,7 +17,7 @@ bun run docker:dev
 ./scripts/dev.sh
 
 # This will:
-# 1. Start Docker (Postgres + Redis)
+# 1. Start Docker (Postgres + Redis + SeaweedFS)
 # 2. Wait for services to be healthy
 # 3. Run database migrations
 # 4. Start all dev servers (web + api)
@@ -26,8 +26,12 @@ bun run docker:dev
 **Services:**
 - 🌐 **Web**: http://localhost:3000 (Next.js with hot reload)
 - 🔌 **API**: http://localhost:3001 (NestJS with hot reload)
-- 🐘 **Postgres**: localhost:5432
+- 🐘 **Postgres**: localhost:54321
 - 🔴 **Redis**: localhost:6379
+- 🪣 **SeaweedFS S3**: http://localhost:8333
+- 🗂️ **SeaweedFS Filer UI**: http://localhost:8888
+- 🌱 **SeaweedFS Master UI**: http://localhost:9333
+- 📦 **Default bucket**: `mnemra-documents`
 
 ### Stop Everything
 
@@ -49,6 +53,7 @@ bun run docker:logs
 # Or specific service
 docker compose logs -f postgres
 docker compose logs -f redis
+docker compose logs -f seaweedfs
 ```
 
 ### Reset Database
@@ -74,6 +79,7 @@ Everything runs in Docker:
 - NestJS API (api)
 - PostgreSQL with pgvector
 - Redis
+- SeaweedFS (S3-compatible object storage)
 - Caddy (reverse proxy + auto SSL)
 
 ### Deploy
@@ -112,6 +118,7 @@ docker compose -f docker-compose.prod.yml ps
 # Should show:
 # - postgres (healthy)
 # - redis (healthy)
+# - seaweedfs (healthy)
 # - api (running)
 # - web (running)
 # - caddy (running)
@@ -214,14 +221,26 @@ Caddy (:80, :443) ← SSL termination
    └─ api (:3001) ← internal network
           │
           ├─ postgres (:5432) ← internal only
-          └─ redis (:6379) ← internal only
+          ├─ redis (:6379) ← internal only
+          └─ seaweedfs (:8333, :8888, :9333) ← internal only
 ```
 
 **Networks:**
 - `web`: Caddy ↔ apps (public-facing)
 - `internal`: apps ↔ database/redis (private)
 
-Database & Redis **not exposed** to internet.
+Database, Redis, and SeaweedFS **not exposed** to internet.
+
+### Storage Config
+
+Local development:
+- `S3_ENDPOINT=http://localhost:8333`
+- `S3_BUCKET=mnemra-documents`
+- credentials come from `docker/seaweedfs/s3.json`
+
+Production:
+- `S3_ENDPOINT=http://seaweedfs:8333`
+- prod must provide `docker/seaweedfs/s3.prod.json` with real credentials matching `.env.production`
 
 ---
 

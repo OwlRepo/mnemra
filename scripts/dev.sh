@@ -26,6 +26,11 @@ until docker compose exec -T redis redis-cli ping > /dev/null 2>&1; do
 done
 echo "✅ Redis ready"
 
+until wget -q --spider http://localhost:8333 2>/dev/null || nc -z localhost 8333 2>/dev/null; do
+    sleep 1
+done
+echo "✅ SeaweedFS ready"
+
 # Run database migrations
 echo "🗄️  Running database migrations..."
 cd packages/db

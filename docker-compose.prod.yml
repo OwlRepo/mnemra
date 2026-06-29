@@ -38,6 +38,25 @@ services:
       timeout: 3s
       retries: 5
 
+  seaweedfs:
+    image: chrislusf/seaweedfs
+    container_name: support-brain-seaweedfs-prod
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    command: server -s3 -s3.config=/etc/seaweedfs/s3.json -dir=/data
+    volumes:
+      - seaweedfs_data:/data
+      - ./docker/seaweedfs/s3.prod.json:/etc/seaweedfs/s3.json:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   api:
     build:
       context: .
@@ -50,6 +69,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      seaweedfs:
         condition: service_healthy
     environment:
       NODE_ENV: production
@@ -115,5 +136,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  seaweedfs_data:
   caddy_data:
   caddy_config:

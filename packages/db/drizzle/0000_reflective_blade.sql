@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+--> statement-breakpoint
 DO $$ BEGIN
  CREATE TYPE "workspace_member_role" AS ENUM('owner', 'admin', 'member');
 EXCEPTION
