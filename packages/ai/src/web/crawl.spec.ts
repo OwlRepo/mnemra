@@ -168,6 +168,34 @@ describe('crawlSite', () => {
     }
   }
 
+  function buildThinHubSite(): Record<string, MockResponseInit> {
+    return {
+      'https://example.com/robots.txt': {
+        body: 'User-agent: *\nDisallow:\n',
+        contentType: 'text/plain',
+      },
+      'https://example.com/docs': {
+        body: htmlPage(
+          'Docs hub',
+          `
+            <main>
+              <nav>
+                <a href="/docs/article-a">Article A</a>
+                <a href="/docs/article-b">Article B</a>
+              </nav>
+            </main>
+          `,
+        ),
+      },
+      'https://example.com/docs/article-a': {
+        body: htmlPage('Article A', `<article><p>${'Article A body '.repeat(12)}</p></article>`),
+      },
+      'https://example.com/docs/article-b': {
+        body: htmlPage('Article B', `<article><p>${'Article B body '.repeat(12)}</p></article>`),
+      },
+    }
+  }
+
   it('stops at configured depth', async () => {
     const { fetchImpl } = makeFetch(buildSite())
 
@@ -283,5 +311,36 @@ describe('crawlSite', () => {
     expect(pages.some((page) => page.url === 'https://example.com/docs/broken')).toBe(false)
     expect(pages.some((page) => page.url === 'https://example.com/docs/file.pdf')).toBe(false)
     expect(pages.some((page) => page.url === 'https://example.com/docs/article-a')).toBe(true)
+  })
+
+  it('follows links from thin hub pages to deeper articles', async () => {
+    const { fetchImpl } = makeFetch(buildThinHubSite())
+
+    const pages = await crawlSite('https://example.com/docs/', {
+      maxDepth: 1,
+      includePrefixes: ['/docs'],
+      fetchImpl,
+      requestDelayMs: 0,
+      timeoutMs: 1000,
+    })
+
+    expect(pages.map((page) => page.url)).toEqual([
+      'https://example.com/docs/article-a',
+      'https://example.com/docs/article-b',
+    ])
+  })
+
+  it('does not store thin hub pages even when their links are followed', async () => {
+    const { fetchImpl } = makeFetch(buildThinHubSite())
+
+    const pages = await crawlSite('https://example.com/docs/', {
+      maxDepth: 1,
+      includePrefixes: ['/docs'],
+      fetchImpl,
+      requestDelayMs: 0,
+      timeoutMs: 1000,
+    })
+
+    expect(pages.some((page) => page.url === 'https://example.com/docs')).toBe(false)
   })
 })

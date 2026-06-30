@@ -51,6 +51,16 @@ Confirmed from `apps/web/package.json` as of 2026-06-29:
 - `bun run test` — Vitest, runs once (`apps/web/**/*.spec.ts`, node environment, config at `vitest.config.mts` — must be `.mts` not `.ts`, see note below)
 - `bun run test:watch` — Vitest, watch mode
 
+Chat UI note as of 2026-06-30:
+- `apps/web/app/api/workspaces/[id]/chat/**/*.spec.ts` covers streaming proxy + history proxies.
+- `apps/web/app/workspaces/[id]/chat/page.spec.ts` covers session list/history loading and source rendering from chat headers/persisted messages.
+- `apps/web/app/chat/page.spec.ts` covers legacy `/chat` redirect to first workspace chat.
+
+Chat cache note as of 2026-06-30:
+- `apps/api/src/cache/cache.service.spec.ts` covers Redis exact cache versioning + semantic thresholding.
+- `apps/api/src/chat/chat.service.spec.ts` covers exact-hit, semantic-hit, miss-to-cache, and single-embed behavior.
+- `apps/api/test/chat.e2e-spec.ts` covers repeat-question cache hits and version-bump invalidation after KB mutation.
+
 `packages/db`/`packages/ai` still have no test commands — only `type-check`/`build`/`lint`. Playwright e2e for `apps/web` is still a known gap — deferred until there's a real multi-page flow worth driving a browser through (Priority 2 web pages).
 Confirmed from `packages/ai/package.json` as of 2026-06-30:
 

@@ -38,7 +38,7 @@ export class ScrapeProcessor {
       .where(eq(scrapeRuns.id, runId))
 
     try {
-      const { crawlSite } = await import('@repo/ai/dist/web/crawl')
+      const { crawlSite } = await import('@repo/ai')
       const pages = await crawlSite(url, {
         maxDepth,
         maxPages,

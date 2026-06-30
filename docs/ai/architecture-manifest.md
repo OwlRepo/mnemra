@@ -60,6 +60,11 @@ TODO: Fill after repository analysis. Do not treat as verified.
 
 TODO: Fill after repository analysis. Do not treat as verified.
 
+CONTEXT DRIFT resolved 2026-06-30 for chat path:
+- `apps/api/src/cache/cache.service.ts` adds answer caching in API layer, not `packages/ai`.
+- Runtime order is exact Redis cache -> semantic pgvector cache (`chat_cache`) -> normal retrieval/LLM path.
+- Workspace cache invalidation is version-based and is bumped from document delete + ingest completion.
+
 ### Middleware
 
 TODO: Fill after repository analysis. Do not treat as verified.
@@ -82,7 +87,10 @@ TODO: Fill after repository analysis. Do not treat as verified.
 
 ### FE-BE Communication
 
-TODO: Fill after repository analysis. Do not treat as verified.
+CONTEXT DRIFT resolved 2026-06-30 for chat path:
+- Legacy `apps/web/app/api/chat/route.ts` edge route that called OpenAI directly is removed.
+- Browser chat now flows through `apps/web/app/workspaces/[id]/chat/page.tsx` → same-origin workspace chat proxies → `apps/api/src/chat/*` → `packages/ai/src/chains/index.ts`.
+- Streaming protocol remains plain text for `useChat`, while citations/session id/cache status travel in response headers and full citations persist in `chat_messages.sources`.
 
 ### Request/Response Patterns
 

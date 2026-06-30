@@ -4,6 +4,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { db, documents, knowledgeBases } from '@repo/db'
 import { IngestService } from '../ingest/ingest.service'
 import { StorageService } from '../storage/storage.service'
+import { CacheService } from '../cache/cache.service'
 
 @Injectable()
 export class DocumentsService {
@@ -12,6 +13,7 @@ export class DocumentsService {
   constructor(
     private readonly storage: StorageService,
     private readonly ingest: IngestService,
+    private readonly cache: CacheService,
   ) {}
 
   async upload(workspaceId: string, kbId: string, file: Express.Multer.File) {
@@ -72,6 +74,7 @@ export class DocumentsService {
     }
 
     await db.delete(documents).where(eq(documents.id, documentId))
+    await this.cache.bumpVersion(workspaceId)
 
     return { message: 'Document deleted' }
   }

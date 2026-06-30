@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing'
 import { eq, like } from 'drizzle-orm'
 import { db, chunks, documents, knowledgeBases, pool, users, workspaceMembers, workspaces } from '@repo/db'
 import { IngestProcessor } from './ingest.processor'
+import { CacheService } from '../cache/cache.service'
 import { StorageService } from '../storage/storage.service'
 
 const mockLoadDocument = jest.fn()
@@ -82,15 +83,18 @@ async function seedDocument(emailPrefix: string) {
 describe('IngestProcessor', () => {
   let processor: IngestProcessor
   let storage: { getToTempFile: jest.Mock }
+  let cache: { bumpVersion: jest.Mock }
   const fixtureEmailPrefix = `ingest-spec-${Date.now()}-`
 
   beforeAll(async () => {
     storage = { getToTempFile: jest.fn() }
+    cache = { bumpVersion: jest.fn() }
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         IngestProcessor,
         { provide: StorageService, useValue: storage },
+        { provide: CacheService, useValue: cache },
       ],
     }).compile()
 
@@ -179,6 +183,7 @@ describe('IngestProcessor', () => {
     expect(mockChunkDocument.mock.invocationCallOrder[0]).toBeLessThan(mockEmbedChunks.mock.invocationCallOrder[0])
     expect(mockEmbedChunks.mock.invocationCallOrder[0]).toBeLessThan(mockSyncChunks.mock.invocationCallOrder[0])
     expect(mockUnlink).toHaveBeenCalledWith('/tmp/ingest-spec.txt')
+    expect(cache.bumpVersion).toHaveBeenCalledWith(workspace.id)
   })
 
   it('failure path marks document failed and still cleans temp file', async () => {

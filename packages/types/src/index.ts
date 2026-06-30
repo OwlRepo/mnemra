@@ -1,12 +1,13 @@
-export interface Tenant {
+export interface Workspace {
   id: string
   name: string
+  ownerId: string
   createdAt: Date
 }
 
 export interface Document {
   id: string
-  tenantId: string
+  workspaceId: string
   title: string
   sourceUrl?: string
   createdAt: Date
@@ -15,7 +16,7 @@ export interface Document {
 export interface Chunk {
   id: string
   documentId: string
-  tenantId: string
+  workspaceId: string
   content: string
   embedding?: number[]
   metadata?: Record<string, any>

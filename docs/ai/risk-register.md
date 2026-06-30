@@ -79,3 +79,20 @@ If risk area is missing, mark `UNMAPPED RISK`.
   - workspace doc quota clamps `maxPages` before queueing
   - recrawl of same page upserts one `documents` row by `(knowledge_base_id, source_url)` and reuses ingest safely
   - web page polls crawl runs every 3 seconds only while a run is `queued` or `running`
+
+- Workspace chat / RAG is a live tenant-isolation + history-privacy risk as of 2026-06-30.
+  Required checks:
+  - backend route stays nested under `:workspaceId` with `JwtAuthGuard` + `WorkspaceMemberGuard`
+  - retrieval only uses guarded route `workspaceId`, never body-supplied tenant identifiers
+  - session/message reads filter by both `workspaceId` and owning `userId`
+  - web proxy never forwards raw OpenAI credentials or calls OpenAI from browser-facing API routes
+  - plain-text stream keeps citations out of token body; sources persist on assistant message for reload-safe history
+
+- Answer caching on workspace chat is a live tenant-isolation + staleness risk as of 2026-06-30.
+  Required checks:
+  - exact cache keys include `workspaceId` and current version
+  - semantic cache lookup filters by both `workspaceId` and `version`
+  - first cache version bootstraps to `1`; invalidation bumps move to `2+` so old exact keys go dark
+  - document ingest `done` and document delete both call `cache.bumpVersion(workspaceId)`
+  - Redis/cache failures fail soft to normal chat answers; cache outage must not 500 chat
+  - optional `X-Chat-Cache` header reflects `exact|semantic|miss` for observability/tests

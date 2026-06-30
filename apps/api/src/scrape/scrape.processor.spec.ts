@@ -18,7 +18,7 @@ import { IngestService } from '../ingest/ingest.service'
 
 const mockCrawlSite = jest.fn()
 
-jest.mock('@repo/ai/dist/web/crawl', () => ({
+jest.mock('@repo/ai', () => ({
   crawlSite: (...args: unknown[]) => mockCrawlSite(...args),
 }))
 

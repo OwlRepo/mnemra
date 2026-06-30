@@ -22,6 +22,20 @@
       "when": 1782799112496,
       "tag": "0002_ordinary_punisher",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1782831865892,
+      "tag": "0003_shallow_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1782833454970,
+      "tag": "0004_exotic_roughhouse",
+      "breakpoints": true
     }
   ]
 }

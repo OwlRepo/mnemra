@@ -1,0 +1,475 @@
+'use client'
+
+import * as React from 'react'
+import Link from 'next/link'
+import { type Message } from 'ai'
+import { useChat } from 'ai/react'
+import { useRouter } from 'next/navigation'
+import {
+  AppHeader,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  PageShell,
+  StatusBanner,
+  useToast,
+} from '@repo/ui'
+import {
+  Bot,
+  FileStack,
+  MessageSquareText,
+  RefreshCcw,
+  Search,
+  Send,
+  Sparkles,
+  Square,
+} from 'lucide-react'
+import { getChatMessages, listChatSessions } from '@/lib/api/chat'
+import { isUnauthorized } from '@/lib/api/handle-unauthorized'
+
+type ChatSource = {
+  documentId: string
+  title: string
+  sourceUrl: string | null
+  score: number
+  snippet: string
+}
+
+type ChatSession = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+type PersistedChatMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  sources?: ChatSource[] | null
+  createdAt: string
+}
+
+const suggestedPrompts = [
+  'How do I reset a password for a customer account?',
+  'What is our refund policy for annual plans?',
+  'Customer cannot access invoices after SSO migration. What should support do?',
+]
+
+function parseSourcesHeader(value: string | null): ChatSource[] {
+  if (!value) return []
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(value))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function toChatMessage(message: PersistedChatMessage): Message {
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+  }
+}
+
+export default function WorkspaceChatPage({ params }: { params: { id: string } }) {
+  const workspaceId = params.id
+  const router = useRouter()
+  const { toast } = useToast()
+  const toastRef = React.useRef(toast)
+  const pendingSourcesRef = React.useRef<ChatSource[]>([])
+  const pendingSessionIdRef = React.useRef<string | null>(null)
+  const [sessions, setSessions] = React.useState<ChatSession[]>([])
+  const [activeSessionId, setActiveSessionId] = React.useState<string | undefined>()
+  const [sessionLoadError, setSessionLoadError] = React.useState<string | null>(null)
+  const [messageSources, setMessageSources] = React.useState<Record<string, ChatSource[]>>({})
+
+  React.useEffect(() => {
+    toastRef.current = toast
+  }, [toast])
+
+  const loadSessions = React.useCallback(async () => {
+    try {
+      const data = await listChatSessions(workspaceId)
+      setSessions(Array.isArray(data) ? data : [])
+      setSessionLoadError(null)
+    } catch (err) {
+      if (isUnauthorized(err)) {
+        router.push('/login')
+        return
+      }
+
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: unknown }).message)
+          : 'Try again in a moment.'
+
+      setSessionLoadError(message)
+    }
+  }, [router, workspaceId])
+
+  const {
+    messages,
+    setMessages,
+    input,
+    setInput,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    error,
+    reload,
+    stop,
+  } = useChat({
+    api: `/api/workspaces/${workspaceId}/chat`,
+    streamProtocol: 'text',
+    body: activeSessionId ? { sessionId: activeSessionId } : undefined,
+    keepLastMessageOnError: true,
+    onResponse: (response) => {
+      if (response.status === 401) {
+        router.push('/login')
+        return
+      }
+
+      pendingSourcesRef.current = parseSourcesHeader(response.headers.get('x-chat-sources'))
+      pendingSessionIdRef.current = response.headers.get('x-chat-session-id')
+    },
+    onFinish: async (message) => {
+      if (pendingSourcesRef.current.length > 0) {
+        setMessageSources((current) => ({
+          ...current,
+          [message.id]: pendingSourcesRef.current,
+        }))
+      }
+
+      const nextSessionId = pendingSessionIdRef.current ?? activeSessionId ?? undefined
+      pendingSourcesRef.current = []
+      pendingSessionIdRef.current = null
+
+      if (nextSessionId) {
+        React.startTransition(() => {
+          setActiveSessionId(nextSessionId)
+        })
+      }
+
+      await loadSessions()
+
+      if (nextSessionId) {
+        try {
+          const data = await getChatMessages(workspaceId, nextSessionId)
+          const rows = Array.isArray(data) ? (data as PersistedChatMessage[]) : []
+          setMessages(rows.map(toChatMessage))
+          setMessageSources(
+            Object.fromEntries(
+              rows
+                .filter((row) => Array.isArray(row.sources) && row.sources.length > 0)
+                .map((row) => [row.id, row.sources ?? []]),
+            ),
+          )
+        } catch (err) {
+          if (isUnauthorized(err)) {
+            router.push('/login')
+            return
+          }
+        }
+      }
+    },
+    onError: (chatError) => {
+      if (chatError.message === 'Unauthorized') {
+        router.push('/login')
+        return
+      }
+
+      toastRef.current({
+        variant: 'error',
+        title: 'Assistant unavailable',
+        description: chatError.message || 'We could not complete your request. Retry when ready.',
+      })
+    },
+  })
+
+  React.useEffect(() => {
+    void loadSessions()
+  }, [loadSessions])
+
+  const loadSessionMessages = React.useCallback(
+    async (sessionId: string) => {
+      try {
+        const data = await getChatMessages(workspaceId, sessionId)
+        const rows = Array.isArray(data) ? (data as PersistedChatMessage[]) : []
+
+        React.startTransition(() => {
+          setActiveSessionId(sessionId)
+          setMessages(rows.map(toChatMessage))
+          setMessageSources(
+            Object.fromEntries(
+              rows
+                .filter((row) => Array.isArray(row.sources) && row.sources.length > 0)
+                .map((row) => [row.id, row.sources ?? []]),
+            ),
+          )
+        })
+      } catch (err) {
+        if (isUnauthorized(err)) {
+          router.push('/login')
+          return
+        }
+
+        const message =
+          err && typeof err === 'object' && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : 'Try again in a moment.'
+
+        toastRef.current({
+          variant: 'error',
+          title: 'Failed to load chat history',
+          description: message,
+        })
+      }
+    },
+    [router, setMessages, workspaceId],
+  )
+
+  const submitForm = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!input.trim() || isLoading) {
+      return
+    }
+    handleSubmit(event)
+  }
+
+  const startNewChat = () => {
+    React.startTransition(() => {
+      setActiveSessionId(undefined)
+      setMessages([])
+      setMessageSources({})
+      setInput('')
+    })
+  }
+
+  const latestAssistantSources = [...messages]
+    .reverse()
+    .find((message) => message.role === 'assistant' && (messageSources[message.id]?.length ?? 0) > 0)
+
+  return (
+    <PageShell contentClassName="pb-16">
+      <AppHeader
+        className="mt-4 rounded-[calc(var(--radius)+0.5rem)] border border-border/70 bg-background/75"
+        brand={
+          <Link
+            href={`/workspaces/${workspaceId}`}
+            className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-md)]"
+          >
+            <Sparkles className="size-5" />
+          </Link>
+        }
+        title="Workspace assistant"
+        description="Grounded workspace answers with saved history and source citations."
+        badge={<Badge variant="secondary">Workspace RAG</Badge>}
+        navigation={
+          <>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/workspaces">Workspaces</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/workspaces/${workspaceId}`}>Workspace</Link>
+            </Button>
+          </>
+        }
+        actions={
+          <Button size="sm" variant="outline" onClick={startNewChat}>
+            New chat
+          </Button>
+        }
+      />
+
+      <div className="grid gap-6 pb-6 pt-10 xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
+        <Card variant="subtle" className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-primary">History</p>
+              <p className="text-xs text-muted-foreground">Your sessions in this workspace</p>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => void loadSessions()}>
+              <RefreshCcw className="size-4" />
+            </Button>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {sessions.map((session) => (
+              <button
+                key={session.id}
+                type="button"
+                className={`w-full rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                  activeSessionId === session.id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border/70 bg-background hover:border-primary/30'
+                }`}
+                onClick={() => void loadSessionMessages(session.id)}
+              >
+                <p className="font-medium">{session.title}</p>
+              </button>
+            ))}
+
+            {sessions.length === 0 ? (
+              <EmptyState
+                icon={<MessageSquareText className="size-5" />}
+                title="No chat history yet"
+                description="Start first workspace conversation to create saved history."
+              />
+            ) : null}
+          </div>
+
+          {sessionLoadError ? (
+            <StatusBanner
+              className="mt-4"
+              variant="error"
+              title="Failed to load sessions"
+              description={sessionLoadError}
+            />
+          ) : null}
+        </Card>
+
+        <Card variant="elevated" className="flex min-h-[70vh] flex-col overflow-hidden">
+          <div className="border-b border-border/70 px-6 py-5 sm:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-primary">Workspace-scoped answers</p>
+                <h2 className="mt-1 text-2xl font-semibold">Ask questions across this workspace</h2>
+              </div>
+              <Badge variant={isLoading ? 'secondary' : 'success'}>
+                {isLoading ? 'Searching' : 'Ready'}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6 sm:px-8">
+            {error ? (
+              <StatusBanner
+                variant="error"
+                title="Request interrupted"
+                description={error.message || 'Assistant could not complete response.'}
+              />
+            ) : null}
+
+            {messages.length === 0 ? (
+              <EmptyState
+                icon={<Bot className="size-5" />}
+                title="Start workspace chat"
+                description="Ask policy, troubleshooting, or product questions grounded in your indexed docs."
+                actions={
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {suggestedPrompts.map((prompt) => (
+                      <Button key={prompt} variant="outline" size="sm" onClick={() => setInput(prompt)}>
+                        {prompt}
+                      </Button>
+                    ))}
+                  </div>
+                }
+              />
+            ) : (
+              <div className="space-y-4">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`rounded-[calc(var(--radius)+0.25rem)] border px-4 py-3 text-sm shadow-[var(--shadow-sm)] ${
+                      message.role === 'user'
+                        ? 'border-primary/20 bg-primary/5'
+                        : 'border-border/70 bg-secondary/40'
+                    }`}
+                  >
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      {message.role}
+                    </p>
+                    <p className="whitespace-pre-wrap leading-7">{message.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border/70 bg-background/70 px-6 py-5 backdrop-blur-sm sm:px-8">
+            <form onSubmit={submitForm} className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Input
+                  value={input}
+                  onChange={handleInputChange}
+                  placeholder="Ask a workspace question…"
+                  className="h-12 flex-1 text-base"
+                  disabled={isLoading}
+                />
+                <div className="flex gap-3">
+                  {isLoading ? (
+                    <Button type="button" variant="outline" size="lg" onClick={stop}>
+                      <Square className="size-4" />
+                      Stop
+                    </Button>
+                  ) : null}
+                  <Button type="submit" size="lg" isLoading={isLoading} loadingText="Sending">
+                    {!isLoading ? <Send className="size-4" /> : null}
+                    {!isLoading ? 'Send' : null}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </Card>
+
+        <Card variant="subtle" className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Search className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-primary">Sources</p>
+              <p className="text-xs text-muted-foreground">Latest assistant citations</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {latestAssistantSources ? (
+              messageSources[latestAssistantSources.id]?.map((source) => (
+                <div key={`${latestAssistantSources.id}-${source.documentId}`} className="rounded-2xl border border-border/70 bg-background px-3 py-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    {source.sourceUrl ? (
+                      <a
+                        href={source.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                      >
+                        {source.title}
+                      </a>
+                    ) : (
+                      <p className="font-medium">{source.title}</p>
+                    )}
+                    <Badge variant="outline">{source.score.toFixed(2)}</Badge>
+                  </div>
+                  <p className="mt-2 line-clamp-4 text-xs leading-6 text-muted-foreground">
+                    {source.snippet}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <EmptyState
+                icon={<FileStack className="size-5" />}
+                title="No citations yet"
+                description="Cited sources appear here after assistant finishes an answer."
+              />
+            )}
+          </div>
+
+          <div className="mt-4">
+            <Button variant="ghost" size="sm" onClick={() => void reload()}>
+              Retry last answer
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </PageShell>
+  )
+}

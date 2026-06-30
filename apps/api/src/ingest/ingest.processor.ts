@@ -5,12 +5,16 @@ import { Job } from 'bull'
 import { db, documents } from '@repo/db'
 import { eq } from 'drizzle-orm'
 import { StorageService } from '../storage/storage.service'
+import { CacheService } from '../cache/cache.service'
 
 @Processor('ingest-queue')
 export class IngestProcessor {
   private readonly logger = new Logger(IngestProcessor.name)
 
-  constructor(private readonly storage: StorageService) {}
+  constructor(
+    private readonly storage: StorageService,
+    private readonly cache: CacheService,
+  ) {}
 
   @Process()
   async handleIngest(job: Job<{ documentId: string }>): Promise<void> {
@@ -56,6 +60,7 @@ export class IngestProcessor {
         .update(documents)
         .set({ status: 'done', updatedAt: new Date() })
         .where(eq(documents.id, documentId))
+      await this.cache.bumpVersion(document.workspaceId)
     } catch (error) {
       this.logger.error(
         `Ingest failed for document ${documentId}`,

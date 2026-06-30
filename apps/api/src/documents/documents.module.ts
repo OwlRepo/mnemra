@@ -5,11 +5,12 @@ import { RolesGuard } from '../auth/guards/roles.guard'
 import { WorkspaceMemberGuard } from '../auth/guards/workspace-member.guard'
 import { IngestModule } from '../ingest/ingest.module'
 import { StorageModule } from '../storage/storage.module'
+import { CacheModule } from '../cache/cache.module'
 import { DocumentsController } from './documents.controller'
 import { DocumentsService } from './documents.service'
 
 @Module({
-  imports: [AuthModule, StorageModule, IngestModule],
+  imports: [AuthModule, StorageModule, IngestModule, CacheModule],
   controllers: [DocumentsController],
   providers: [DocumentsService, JwtAuthGuard, WorkspaceMemberGuard, RolesGuard],
   exports: [DocumentsService],

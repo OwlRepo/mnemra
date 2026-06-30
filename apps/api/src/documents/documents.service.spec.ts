@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing'
 import { and, eq, like } from 'drizzle-orm'
 import { db, chunks, documents, knowledgeBases, pool, users, workspaceMembers, workspaces } from '@repo/db'
 import { DocumentsService } from './documents.service'
+import { CacheService } from '../cache/cache.service'
 import { StorageService } from '../storage/storage.service'
 import { IngestService } from '../ingest/ingest.service'
 
@@ -62,6 +63,7 @@ describe('DocumentsService', () => {
   let service: DocumentsService
   let storage: { save: jest.Mock; delete: jest.Mock }
   let ingest: { queueDocument: jest.Mock }
+  let cache: { bumpVersion: jest.Mock }
   const prefix = `documents-spec-${Date.now()}-`
 
   beforeAll(async () => {
@@ -72,12 +74,16 @@ describe('DocumentsService', () => {
     ingest = {
       queueDocument: jest.fn(),
     }
+    cache = {
+      bumpVersion: jest.fn(),
+    }
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         DocumentsService,
         { provide: StorageService, useValue: storage },
         { provide: IngestService, useValue: ingest },
+        { provide: CacheService, useValue: cache },
       ],
     }).compile()
 
@@ -192,6 +198,7 @@ describe('DocumentsService', () => {
       message: 'Document deleted',
     })
     expect(storage.delete).toHaveBeenCalledWith(document.storageKey)
+    expect(cache.bumpVersion).toHaveBeenCalledWith(mine.workspace.id)
 
     const [deletedDoc] = await db.select().from(documents).where(eq(documents.id, document.id)).limit(1)
     const deletedChunks = await db.select().from(chunks).where(eq(chunks.documentId, document.id))

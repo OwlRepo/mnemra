@@ -244,8 +244,7 @@ async function crawlPage(
       'User-Agent': context.userAgent,
       Accept: 'text/html',
     },
-    signal: AbortSignal.timeout(context.timeoutMs),
-  })
+  }, context.timeoutMs)
 
   if (!response?.ok) {
     return null
@@ -257,11 +256,6 @@ async function crawlPage(
   }
 
   const html = await response.text()
-  const { title, content } = extractContent(html, url)
-
-  if (content.length < MIN_CONTENT_LENGTH) {
-    return null
-  }
 
   if (depth < context.maxDepth) {
     for (const link of extractLinks(html, url)) {
@@ -282,15 +276,29 @@ async function crawlPage(
     }
   }
 
+  const { title, content } = extractContent(html, url)
+
+  if (content.length < MIN_CONTENT_LENGTH) {
+    return null
+  }
+
   return { url, title, content }
 }
 
-async function fetchWithRetry(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Response | null> {
+async function fetchWithRetry(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response | null> {
   let lastError: unknown
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetchImpl(url, init)
+      const response = await fetchImpl(url, {
+        ...init,
+        signal: AbortSignal.timeout(timeoutMs),
+      })
 
       if (response.status >= 500 && response.status < 600) {
         lastError = new Error(`HTTP ${response.status}`)
