@@ -1,12 +1,14 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   Res,
   Req,
   UnauthorizedException,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import type { Request, Response } from 'express'
@@ -14,6 +16,8 @@ import { AuthService } from './auth.service'
 import { RegisterDto } from './dto/register.dto'
 import { VerifyOtpDto } from './dto/verify-otp.dto'
 import { LoginDto } from './dto/login.dto'
+import { CurrentUser, type CurrentUserContext } from './decorators/current-user.decorator'
+import { JwtAuthGuard } from './guards/jwt-auth.guard'
 
 const RT_COOKIE = 'mnemra_rt'
 const RT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
@@ -78,6 +82,12 @@ export class AuthController {
     }
     res.clearCookie(RT_COOKIE, { path: '/' })
     return { message: 'Logged out' }
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  getMe(@CurrentUser() user: CurrentUserContext) {
+    return user
   }
 
   private setRtCookie(res: Response, token: string) {

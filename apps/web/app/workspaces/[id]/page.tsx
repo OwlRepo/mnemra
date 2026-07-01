@@ -26,9 +26,10 @@ import {
   useToast,
 } from '@repo/ui'
 import { Database, Mail, Plus, Trash2 } from 'lucide-react'
+import { getCurrentUser, logout } from '@/lib/api/auth'
 import { createKnowledgeBase, deleteKnowledgeBase, listKnowledgeBases } from '@/lib/api/knowledge-bases'
 import { isUnauthorized } from '@/lib/api/handle-unauthorized'
-import { getWorkspace, inviteMember, listWorkspaces } from '@/lib/api/workspaces'
+import { getWorkspace, inviteMember, listMembers, listWorkspaces, removeMember } from '@/lib/api/workspaces'
 
 const inviteSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -50,9 +51,27 @@ type KnowledgeBase = {
   createdAt?: string
 }
 
+type KnowledgeBaseListResponse = {
+  items: KnowledgeBase[]
+  nextCursor: string | null
+}
+
 type WorkspaceMembership = {
   id: string
   role: 'owner' | 'admin' | 'member'
+}
+
+type Member = {
+  id: string
+  userId: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+}
+
+type MemberListResponse = {
+  items: Member[]
+  nextCursor: string | null
 }
 
 type InviteFormData = z.infer<typeof inviteSchema>
@@ -65,10 +84,17 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
   const workspaceId = params.id
   const [workspace, setWorkspace] = React.useState<Workspace | null>(null)
   const [knowledgeBases, setKnowledgeBases] = React.useState<KnowledgeBase[]>([])
+  const [knowledgeBaseNextCursor, setKnowledgeBaseNextCursor] = React.useState<string | null>(null)
   const [membership, setMembership] = React.useState<WorkspaceMembership | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false)
   const [pendingDelete, setPendingDelete] = React.useState<KnowledgeBase | null>(null)
+  const [isLoadingMoreKnowledgeBases, setIsLoadingMoreKnowledgeBases] = React.useState(false)
+  const [members, setMembers] = React.useState<Member[]>([])
+  const [membersNextCursor, setMembersNextCursor] = React.useState<string | null>(null)
+  const [isLoadingMoreMembers, setIsLoadingMoreMembers] = React.useState(false)
+  const [pendingRemove, setPendingRemove] = React.useState<Member | null>(null)
+  const [currentUserId, setCurrentUserId] = React.useState<string | null>(null)
 
   const inviteForm = useForm<InviteFormData>({
     resolver: zodResolver(inviteSchema),
@@ -89,17 +115,24 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
   const loadPage = React.useCallback(async () => {
     try {
       setIsLoading(true)
-      const [workspaceData, kbData, memberships] = await Promise.all([
+      const [workspaceData, kbData, memberships, memberData, currentUser] = await Promise.all([
         getWorkspace(workspaceId),
         listKnowledgeBases(workspaceId),
         listWorkspaces(),
+        listMembers(workspaceId) as Promise<MemberListResponse>,
+        getCurrentUser(),
       ])
 
       setWorkspace(workspaceData)
-      setKnowledgeBases(Array.isArray(kbData) ? kbData : [])
+      setKnowledgeBases(Array.isArray(kbData?.items) ? kbData.items : [])
+      setKnowledgeBaseNextCursor(kbData?.nextCursor ?? null)
+      const membershipItems = Array.isArray(memberships?.items) ? memberships.items : []
       setMembership(
-        (Array.isArray(memberships) ? memberships : []).find((entry: WorkspaceMembership) => entry.id === workspaceId) ?? null,
+        membershipItems.find((entry: WorkspaceMembership) => entry.id === workspaceId) ?? null,
       )
+      setMembers(Array.isArray(memberData?.items) ? memberData.items : [])
+      setMembersNextCursor(memberData?.nextCursor ?? null)
+      setCurrentUserId(currentUser?.userId ?? null)
     } catch (err) {
       if (isUnauthorized(err)) {
         router.push('/login')
@@ -119,6 +152,76 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
   React.useEffect(() => {
     void loadPage()
   }, [loadPage])
+
+  const handleLogout = React.useCallback(async () => {
+    try {
+      await logout()
+    } finally {
+      router.push('/login')
+    }
+  }, [router])
+
+  const loadMoreKnowledgeBases = React.useCallback(async () => {
+    if (!knowledgeBaseNextCursor) {
+      return
+    }
+
+    try {
+      setIsLoadingMoreKnowledgeBases(true)
+      const data = (await listKnowledgeBases(workspaceId, {
+        cursor: knowledgeBaseNextCursor,
+      })) as KnowledgeBaseListResponse
+      setKnowledgeBases((current) => [...current, ...(Array.isArray(data?.items) ? data.items : [])])
+      setKnowledgeBaseNextCursor(data?.nextCursor ?? null)
+    } catch (err) {
+      if (isUnauthorized(err)) {
+        router.push('/login')
+        return
+      }
+
+      const message =
+        err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Try again in a moment.'
+
+      toast({
+        variant: 'error',
+        title: 'Failed to load more knowledge bases',
+        description: message,
+      })
+    } finally {
+      setIsLoadingMoreKnowledgeBases(false)
+    }
+  }, [knowledgeBaseNextCursor, router, toast, workspaceId])
+
+  const loadMoreMembers = React.useCallback(async () => {
+    if (!membersNextCursor) {
+      return
+    }
+
+    try {
+      setIsLoadingMoreMembers(true)
+      const data = (await listMembers(workspaceId, {
+        cursor: membersNextCursor,
+      })) as MemberListResponse
+      setMembers((current) => [...current, ...(Array.isArray(data?.items) ? data.items : [])])
+      setMembersNextCursor(data?.nextCursor ?? null)
+    } catch (err) {
+      if (isUnauthorized(err)) {
+        router.push('/login')
+        return
+      }
+
+      const message =
+        err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Try again in a moment.'
+
+      toast({
+        variant: 'error',
+        title: 'Failed to load more members',
+        description: message,
+      })
+    } finally {
+      setIsLoadingMoreMembers(false)
+    }
+  }, [membersNextCursor, router, toast, workspaceId])
 
   const submitInvite = inviteForm.handleSubmit(async (data) => {
     try {
@@ -205,6 +308,37 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
     }
   }, [loadPage, pendingDelete, router, toast, workspaceId])
 
+  const confirmRemoveMember = React.useCallback(async () => {
+    if (!pendingRemove) {
+      return
+    }
+
+    try {
+      await removeMember(workspaceId, pendingRemove.userId)
+      toast({
+        variant: 'success',
+        title: 'Member removed',
+        description: `${pendingRemove.email} no longer has access.`,
+      })
+      setPendingRemove(null)
+      await loadPage()
+    } catch (err) {
+      if (isUnauthorized(err)) {
+        router.push('/login')
+        return
+      }
+
+      const message =
+        err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Try again in a moment.'
+
+      toast({
+        variant: 'error',
+        title: 'Failed to remove member',
+        description: message,
+      })
+    }
+  }, [loadPage, pendingRemove, router, toast, workspaceId])
+
   return (
     <PageShell contentClassName="pb-16">
       <AppHeader
@@ -224,6 +358,7 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
             </Button>
           ) : null
         }
+        onLogout={handleLogout}
       />
 
       <div className="space-y-8 py-10">
@@ -262,6 +397,70 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
         </PageSection>
 
         <PageSection
+          eyebrow={<Badge variant="outline">Roster</Badge>}
+          title="Members"
+          description="Everyone with access to this workspace."
+        >
+          {isLoading ? (
+            <Card variant="elevated" className="space-y-4 p-6">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </Card>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell className="font-medium">{member.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={member.role === 'member' ? 'secondary' : 'success'}>{member.role}</Badge>
+                      </TableCell>
+                      <TableCell>{new Date(member.joinedAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        {membership?.role === 'owner' && member.userId !== currentUserId ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Remove ${member.email}`}
+                            onClick={() => setPendingRemove(member)}
+                          >
+                            <Trash2 className="size-4" />
+                            Remove
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {membersNextCursor ? (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void loadMoreMembers()}
+                    isLoading={isLoadingMoreMembers}
+                    loadingText="Loading"
+                    aria-label="Load more members"
+                  >
+                    {!isLoadingMoreMembers ? 'Load more members' : null}
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </PageSection>
+
+        <PageSection
           eyebrow={<Badge variant="secondary">Knowledge</Badge>}
           title="Knowledge bases"
           description="Each knowledge base holds the documents used for retrieval."
@@ -286,43 +485,59 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
               }
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {knowledgeBases.map((knowledgeBase) => (
-                  <TableRow key={knowledgeBase.id}>
-                    <TableCell className="font-medium">{knowledgeBase.name}</TableCell>
-                    <TableCell>
-                      {knowledgeBase.createdAt ? new Date(knowledgeBase.createdAt).toLocaleDateString() : 'Recently created'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button asChild variant="ghost" size="sm">
-                          <Link href={`/workspaces/${workspaceId}/knowledge-bases/${knowledgeBase.id}`}>Open</Link>
-                        </Button>
-                        {canManage ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Delete ${knowledgeBase.name}`}
-                            onClick={() => setPendingDelete(knowledgeBase)}
-                          >
-                            <Trash2 className="size-4" />
-                            Delete
-                          </Button>
-                        ) : null}
-                      </div>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {knowledgeBases.map((knowledgeBase) => (
+                    <TableRow key={knowledgeBase.id}>
+                      <TableCell className="font-medium">{knowledgeBase.name}</TableCell>
+                      <TableCell>
+                        {knowledgeBase.createdAt ? new Date(knowledgeBase.createdAt).toLocaleDateString() : 'Recently created'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button asChild variant="ghost" size="sm">
+                            <Link href={`/workspaces/${workspaceId}/knowledge-bases/${knowledgeBase.id}`}>Open</Link>
+                          </Button>
+                          {canManage ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Delete ${knowledgeBase.name}`}
+                              onClick={() => setPendingDelete(knowledgeBase)}
+                            >
+                              <Trash2 className="size-4" />
+                              Delete
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {knowledgeBaseNextCursor ? (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void loadMoreKnowledgeBases()}
+                    isLoading={isLoadingMoreKnowledgeBases}
+                    loadingText="Loading"
+                    aria-label="Load more knowledge bases"
+                  >
+                    {!isLoadingMoreKnowledgeBases ? 'Load more knowledge bases' : null}
+                  </Button>
+                </div>
+              ) : null}
+            </>
           )}
         </PageSection>
       </div>
@@ -373,6 +588,26 @@ export default function WorkspaceDetailPage({ params }: { params: { id: string }
             </Button>
             <Button type="button" variant="destructive" onClick={() => void confirmDelete()}>
               Delete knowledge base
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={pendingRemove !== null}
+        onClose={() => setPendingRemove(null)}
+        title="Remove member"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {pendingRemove ? `Remove ${pendingRemove.email} from this workspace?` : ''}
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={() => setPendingRemove(null)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={() => void confirmRemoveMember()}>
+              Remove member
             </Button>
           </div>
         </div>

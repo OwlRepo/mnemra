@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { verifyOtp } from '@/lib/api/auth'
-import { setAccessToken } from '@/lib/auth'
+import { markLoggedIn } from '@/lib/auth'
 
 const schema = z.object({
   code: z
@@ -32,8 +32,8 @@ export default function VerifyOtpPage() {
   const onSubmit = async (data: FormData) => {
     setServerError(null)
     try {
-      const { accessToken } = await verifyOtp(email, data.code)
-      setAccessToken(accessToken)
+      await verifyOtp(email, data.code)
+      markLoggedIn()
       router.push('/dashboard')
     } catch (err: unknown) {
       const message = err && typeof err === 'object' && 'message' in err

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   AppHeader,
   Badge,
@@ -27,6 +28,8 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
+import { isLoggedIn } from '@/lib/auth'
+import { logout } from '@/lib/api/auth'
 
 const stats = [
   {
@@ -74,9 +77,39 @@ const checklist = [
 ]
 
 export default function DashboardPage() {
+  const router = useRouter()
   const { toast, updateToast } = useToast()
   const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [refreshedAt, setRefreshedAt] = React.useState<string | null>(null)
+
+  const ensureAuthenticated = React.useCallback(() => {
+    if (isLoggedIn()) {
+      return
+    }
+
+    router.push('/login')
+  }, [router])
+
+  React.useEffect(() => {
+    ensureAuthenticated()
+
+    const handlePageShow = () => {
+      ensureAuthenticated()
+    }
+
+    window.addEventListener('pageshow', handlePageShow)
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [ensureAuthenticated])
+
+  const handleLogout = React.useCallback(async () => {
+    try {
+      await logout()
+    } finally {
+      router.push('/login')
+    }
+  }, [router])
 
   const handleRefresh = React.useCallback(() => {
     if (isRefreshing) {
@@ -159,6 +192,7 @@ export default function DashboardPage() {
             </Button>
           </>
         }
+        onLogout={handleLogout}
       />
 
       <div className="space-y-8 pb-6 pt-10">

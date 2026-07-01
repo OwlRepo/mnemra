@@ -1,20 +1,20 @@
-const AT_KEY = 'mnemra_at'
+const SESSION_FLAG_KEY = 'mnemra_session_active'
 
-export function setAccessToken(token: string): void {
+export function markLoggedIn(): void {
   if (typeof window !== 'undefined') {
-    sessionStorage.setItem(AT_KEY, token)
+    sessionStorage.setItem(SESSION_FLAG_KEY, '1')
   }
 }
 
-export function getAccessToken(): string | null {
+export function isLoggedIn(): boolean {
   if (typeof window !== 'undefined') {
-    return sessionStorage.getItem(AT_KEY)
+    return sessionStorage.getItem(SESSION_FLAG_KEY) === '1'
   }
-  return null
+  return false
 }
 
-export function clearAccessToken(): void {
+export function clearLoggedIn(): void {
   if (typeof window !== 'undefined') {
-    sessionStorage.removeItem(AT_KEY)
+    sessionStorage.removeItem(SESSION_FLAG_KEY)
   }
 }

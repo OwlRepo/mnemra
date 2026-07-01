@@ -1,4 +1,5 @@
 import { apiFetch } from './client'
+import { clearLoggedIn } from '@/lib/auth'
 
 export async function register(email: string, password: string) {
   return apiFetch('/api/auth/register', {
@@ -26,5 +27,13 @@ export async function refreshAccessToken(): Promise<{ accessToken: string }> {
 }
 
 export async function logout() {
-  return apiFetch('/api/auth/logout', { method: 'POST' })
+  try {
+    return await apiFetch('/api/auth/logout', { method: 'POST' })
+  } finally {
+    clearLoggedIn()
+  }
+}
+
+export async function getCurrentUser(): Promise<{ userId: string; email: string }> {
+  return apiFetch('/api/auth/me')
 }

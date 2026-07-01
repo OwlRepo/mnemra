@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { login } from '@/lib/api/auth'
-import { setAccessToken } from '@/lib/auth'
+import { markLoggedIn } from '@/lib/auth'
 
 const schema = z.object({
   email: z.string().email('Invalid email'),
@@ -29,8 +29,8 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setServerError(null)
     try {
-      const { accessToken } = await login(data.email, data.password)
-      setAccessToken(accessToken)
+      await login(data.email, data.password)
+      markLoggedIn()
       router.push('/dashboard')
     } catch (err: unknown) {
       const message = err && typeof err === 'object' && 'message' in err

@@ -128,4 +128,30 @@ describe('Auth flow (e2e)', () => {
   it('rejects refresh with no cookie at all with 401', async () => {
     await request(app.getHttpServer()).post('/auth/refresh').expect(401)
   })
+
+  it('GET /auth/me returns the caller identity from the access token, and 401s with no token', async () => {
+    const meEmail = `e2e-auth-me-${Date.now()}@example.com`
+    try {
+      await request(app.getHttpServer()).post('/auth/register').send({ email: meEmail, password }).expect(201)
+
+      const [user] = await db.select().from(users).where(eq(users.email, meEmail)).limit(1)
+      const [otp] = await db.select().from(otps).where(eq(otps.userId, user.id)).limit(1)
+
+      const verifyRes = await request(app.getHttpServer())
+        .post('/auth/verify-otp')
+        .send({ email: meEmail, code: otp.code })
+        .expect(201)
+
+      const meRes = await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${verifyRes.body.accessToken}`)
+        .expect(200)
+
+      expect(meRes.body).toEqual({ userId: user.id, email: meEmail })
+
+      await request(app.getHttpServer()).get('/auth/me').expect(401)
+    } finally {
+      await cleanupUser(meEmail)
+    }
+  })
 })
