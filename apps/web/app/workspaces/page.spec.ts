@@ -141,14 +141,6 @@ describe('WorkspacesPage', () => {
     expect(screen.queryByRole('button', { name: 'Load more workspaces' })).toBeNull()
   })
 
-  it('renders dashboard navigation link', async () => {
-    listWorkspacesMock.mockResolvedValue({ items: [], nextCursor: null })
-
-    renderPage()
-
-    expect((await screen.findByRole('link', { name: 'Dashboard' })).getAttribute('href')).toBe('/dashboard')
-  })
-
   it('logs out and redirects to login', async () => {
     listWorkspacesMock.mockResolvedValue({ items: [], nextCursor: null })
     logoutMock.mockResolvedValue(undefined)

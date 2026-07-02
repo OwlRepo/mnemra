@@ -6,13 +6,12 @@ import { type Message } from 'ai'
 import { useChat } from 'ai/react'
 import { useRouter } from 'next/navigation'
 import {
-  AppHeader,
+  AppShell,
   Badge,
   Button,
   Card,
   EmptyState,
   Input,
-  PageShell,
   StatusBanner,
   useToast,
 } from '@repo/ui'
@@ -20,15 +19,17 @@ import {
   Bot,
   FileStack,
   MessageSquareText,
+  PanelLeftClose,
+  PanelLeftOpen,
   RefreshCcw,
   Search,
   Send,
-  Sparkles,
   Square,
 } from 'lucide-react'
 import { logout } from '@/lib/api/auth'
 import { getChatMessages, listChatSessions } from '@/lib/api/chat'
 import { isUnauthorized } from '@/lib/api/handle-unauthorized'
+import { WorkspaceNav } from '@/components/workspace-nav'
 
 type ChatSource = {
   documentId: string
@@ -111,6 +112,7 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = React.useState(false)
   const [sessionLoadError, setSessionLoadError] = React.useState<string | null>(null)
   const [messageSources, setMessageSources] = React.useState<Record<string, ChatSource[]>>({})
+  const [showHistory, setShowHistory] = React.useState(false)
 
   React.useEffect(() => {
     toastRef.current = toast
@@ -362,39 +364,39 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
     .find((message) => message.role === 'assistant' && (messageSources[message.id]?.length ?? 0) > 0)
 
   return (
-    <PageShell contentClassName="pb-16">
-      <AppHeader
-        className="mt-4 rounded-[calc(var(--radius)+0.5rem)] border border-border/70 bg-background/75"
-        brand={
-          <Link
-            href={`/workspaces/${workspaceId}`}
-            className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-md)]"
-          >
-            <Sparkles className="size-5" />
-          </Link>
-        }
+    <AppShell
+      sidebarHeader={({ collapsed }) => (
+        <Link href="/workspaces" className="flex items-center gap-2 text-sm font-semibold">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">W</span>
+          {!collapsed ? <span className="truncate">Workspace</span> : null}
+        </Link>
+      )}
+      navigation={({ collapsed }) => <WorkspaceNav workspaceId={workspaceId} collapsed={collapsed} />}
         title="Workspace assistant"
         description="Grounded workspace answers with saved history and source citations."
         badge={<Badge variant="secondary">Workspace RAG</Badge>}
-        navigation={
-          <>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/workspaces">Workspaces</Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/workspaces/${workspaceId}`}>Workspace</Link>
-            </Button>
-          </>
-        }
-        actions={
-          <Button size="sm" variant="outline" onClick={startNewChat}>
-            New chat
+      actions={
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-pressed={showHistory}
+            onClick={() => setShowHistory((current) => !current)}
+          >
+            {showHistory ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+            {showHistory ? 'Hide history' : 'Show history'}
           </Button>
-        }
-        onLogout={handleLogout}
-      />
-
-      <div className="grid gap-6 pb-6 pt-10 xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
+          <Button size="sm" variant="outline" onClick={startNewChat}>New chat</Button>
+        </>
+      }
+      onLogout={handleLogout}
+    >
+      <div
+        className={`grid gap-6 px-6 py-10 ${
+          showHistory ? 'xl:grid-cols-[18rem_minmax(0,1fr)_20rem]' : 'xl:grid-cols-[minmax(0,1fr)_20rem]'
+        }`}
+      >
+        {showHistory ? (
         <Card variant="subtle" className="p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -452,6 +454,7 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
             />
           ) : null}
         </Card>
+        ) : null}
 
         <Card variant="elevated" className="flex min-h-[70vh] flex-col overflow-hidden">
           <div className="border-b border-border/70 px-6 py-5 sm:px-8">
@@ -601,6 +604,6 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
           </div>
         </Card>
       </div>
-    </PageShell>
+    </AppShell>
   )
 }

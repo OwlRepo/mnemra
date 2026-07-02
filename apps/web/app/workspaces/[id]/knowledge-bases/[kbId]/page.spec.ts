@@ -18,6 +18,7 @@ const logoutMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => routerMock,
+  usePathname: () => '/workspaces/ws-1/knowledge-bases/kb-1',
 }))
 
 vi.mock('@/lib/api/documents', () => ({
@@ -422,13 +423,21 @@ describe('KnowledgeBasePage', () => {
     expect(screen.queryByRole('button', { name: 'Load more documents' })).toBeNull()
   })
 
-  it('renders all workspaces link alongside back to workspace', async () => {
+  it('renders workspace nav and keeps knowledge bases active', async () => {
     listDocumentsMock.mockResolvedValue({ items: [], nextCursor: null })
 
     renderPage()
 
-    expect((await screen.findByRole('link', { name: 'All workspaces' })).getAttribute('href')).toBe('/workspaces')
-    expect(screen.getByRole('link', { name: 'Back to workspace' }).getAttribute('href')).toBe('/workspaces/ws-1')
+    expect(await screen.findByRole('link', { name: 'Knowledge Bases' })).toBeDefined()
+    expect(screen.getByRole('link', { name: 'Knowledge Bases' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('renders scrape website action in top bar', async () => {
+    listDocumentsMock.mockResolvedValue({ items: [], nextCursor: null })
+
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Scrape website' })).toBeDefined()
   })
 
   it('logs out and redirects to login', async () => {

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AppHeader,
+  AppShell,
   Badge,
   Button,
   Card,
@@ -12,7 +12,6 @@ import {
   Input,
   Modal,
   PageSection,
-  PageShell,
   Skeleton,
   Table,
   TableBody,
@@ -32,6 +31,7 @@ import { logout } from "@/lib/api/auth";
 import { listScrapeRuns, scrapeSite } from "@/lib/api/scrape";
 import { isUnauthorized } from "@/lib/api/handle-unauthorized";
 import { listWorkspaces } from "@/lib/api/workspaces";
+import { WorkspaceNav } from "@/components/workspace-nav";
 
 type DocumentRow = {
   id: string;
@@ -522,8 +522,16 @@ export default function KnowledgeBasePage({
   ]);
 
   return (
-    <PageShell contentClassName="pb-16">
-      <AppHeader
+    <AppShell
+      sidebarHeader={({ collapsed }) => (
+        <Link href="/workspaces" className="flex items-center gap-2 text-sm font-semibold">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">W</span>
+          {!collapsed ? <span className="truncate">Workspace</span> : null}
+        </Link>
+      )}
+      navigation={({ collapsed }) => (
+        <WorkspaceNav workspaceId={workspaceId} collapsed={collapsed} />
+      )}
         title="Documents"
         description="Upload source files, watch ingest status, and remove outdated material."
         badge={
@@ -535,29 +543,10 @@ export default function KnowledgeBasePage({
             </Badge>
           ) : null
         }
-        navigation={
-          <>
-            {canManage ? (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setIsScrapeModalOpen(true)}
-              >
-                Scrape website
-              </Button>
-            ) : null}
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/workspaces">All workspaces</Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/workspaces/${workspaceId}`}>Back to workspace</Link>
-            </Button>
-          </>
-        }
+        actions={canManage ? <Button type="button" size="sm" onClick={() => setIsScrapeModalOpen(true)}>Scrape website</Button> : null}
         onLogout={handleLogout}
-      />
-
-      <div className="space-y-8 py-10">
+    >
+      <div className="space-y-8 px-6 py-10">
         <PageSection
           eyebrow={<Badge variant="outline">Ingestion</Badge>}
           title="Upload documents"
@@ -769,7 +758,6 @@ export default function KnowledgeBasePage({
           )}
         </PageSection>
       </div>
-
       <Modal
         open={isScrapeModalOpen}
         onClose={() => setIsScrapeModalOpen(false)}
@@ -860,6 +848,6 @@ export default function KnowledgeBasePage({
           </div>
         </div>
       </Modal>
-    </PageShell>
+    </AppShell>
   );
 }

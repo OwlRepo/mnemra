@@ -16,6 +16,7 @@ const logoutMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useRouter: () => routerMock,
+  usePathname: () => '/workspaces/ws-1/tickets',
 }))
 
 vi.mock('@/lib/api/tickets', () => ({
@@ -403,7 +404,7 @@ describe('TicketsPage', () => {
     })
   })
 
-  it('renders back to workspace navigation link', async () => {
+  it('renders workspace nav active on tickets route', async () => {
     listTicketsMock.mockResolvedValue({
       items: [
         { id: 'ticket-1', title: 'OTP login loop', status: 'done', severity: 'high', createdAt: '2026-07-01T00:00:00.000Z', updatedAt: '2026-07-01T00:00:03.000Z' },
@@ -426,7 +427,8 @@ describe('TicketsPage', () => {
 
     renderPage()
 
-    expect((await screen.findByRole('link', { name: 'Back to workspace' })).getAttribute('href')).toBe('/workspaces/ws-1')
+    expect(await screen.findByText('Ticket copilot')).toBeDefined()
+    expect(screen.getByRole('link', { name: 'Tickets' }).getAttribute('aria-current')).toBe('page')
   })
 
   it('logs out and redirects to login', async () => {

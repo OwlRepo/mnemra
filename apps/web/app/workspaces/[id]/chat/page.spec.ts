@@ -16,6 +16,7 @@ let latestUseChatOptions: any = null
 
 vi.mock('next/navigation', () => ({
   useRouter: () => routerMock,
+  usePathname: () => '/workspaces/ws-1/chat',
 }))
 
 vi.mock('@/lib/api/chat', () => ({
@@ -142,9 +143,33 @@ describe('WorkspaceChatPage', () => {
     vi.restoreAllMocks()
   })
 
+  it('hides history panel by default, showing only chat and sources', async () => {
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('Support SOP')).toBeDefined()
+    })
+
+    expect(screen.queryByText('Your sessions in this workspace')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show history' })).toBeDefined()
+  })
+
+  it('reveals history panel when the history toggle is clicked', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Your sessions in this workspace')).toBeDefined()
+      expect(screen.getByText('Billing help')).toBeDefined()
+      expect(screen.getByRole('button', { name: 'Hide history' })).toBeDefined()
+    })
+  })
+
   it('renders sessions and sources from response header/persisted messages', async () => {
     renderPage()
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
     expect(await screen.findByText('Billing help')).toBeDefined()
 
     await waitFor(() => {
@@ -156,6 +181,7 @@ describe('WorkspaceChatPage', () => {
   it('loads session history and new chat clears session body', async () => {
     renderPage()
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
     expect(await screen.findByText('Billing help')).toBeDefined()
 
     fireEvent.click(screen.getByRole('button', { name: 'Billing help' }))
@@ -191,6 +217,7 @@ describe('WorkspaceChatPage', () => {
 
     renderPage()
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
     expect(await screen.findByText('Billing help')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }))
 
@@ -251,6 +278,7 @@ describe('WorkspaceChatPage', () => {
 
     renderPage()
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
     expect(await screen.findByText('Billing help')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: 'Billing help' }))
 
@@ -280,5 +308,13 @@ describe('WorkspaceChatPage', () => {
       expect(logoutMock).toHaveBeenCalledTimes(1)
       expect(pushMock).toHaveBeenCalledWith('/login')
     })
+  })
+
+  it('renders app shell title/action and workspace nav active on chat route', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Workspace assistant')).toBeDefined()
+    expect(screen.getAllByRole('button', { name: 'New chat' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: 'Chat' }).getAttribute('aria-current')).toBe('page')
   })
 })

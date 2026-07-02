@@ -4,14 +4,13 @@ import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  AppHeader,
+  AppShell,
   Badge,
   Button,
   Card,
   EmptyState,
   Input,
   PageSection,
-  PageShell,
   Select,
   Skeleton,
   StatusBanner,
@@ -28,6 +27,7 @@ import { ClipboardCopy, RefreshCcw, Save, Sparkles } from 'lucide-react'
 import { logout } from '@/lib/api/auth'
 import { createTicket, getTicket, listTickets, updateTicket } from '@/lib/api/tickets'
 import { isUnauthorized } from '@/lib/api/handle-unauthorized'
+import { WorkspaceNav } from '@/components/workspace-nav'
 
 type TicketStatus = 'pending' | 'processing' | 'done' | 'failed'
 type Severity = 'low' | 'medium' | 'high' | null
@@ -365,32 +365,21 @@ export default function TicketsPage({ params }: { params: { id: string } }) {
   const lowConfidenceRootCause = (selectedTicket?.fieldConfidence?.hypothesizedRootCause ?? 0) < 0.7
 
   return (
-    <PageShell contentClassName="pb-16">
-      <AppHeader
-        className="mt-4 rounded-[calc(var(--radius)+0.5rem)] border border-border/70 bg-background/75"
-        brand={
-          <Link href="/" className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-md)]">
-            <Sparkles className="size-5" />
-          </Link>
-        }
+    <AppShell
+      sidebarHeader={({ collapsed }) => (
+        <Link href="/workspaces" className="flex items-center gap-2 text-sm font-semibold">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">W</span>
+          {!collapsed ? <span className="truncate">Workspace</span> : null}
+        </Link>
+      )}
+      navigation={({ collapsed }) => <WorkspaceNav workspaceId={workspaceId} collapsed={collapsed} />}
         title="Ticket copilot"
         description="Paste support-call transcripts, review extracted drafts, then copy polished tickets into Linear."
         badge={<Badge variant="secondary">Workspace scoped</Badge>}
-        navigation={
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`/workspaces/${workspaceId}`}>Back to workspace</Link>
-          </Button>
-        }
-        actions={
-          <Button variant="outline" size="sm" onClick={() => void loadTickets()}>
-            <RefreshCcw className="size-4" />
-            Refresh
-          </Button>
-        }
-        onLogout={handleLogout}
-      />
-
-      <div className="space-y-8 pt-10">
+      actions={<Button variant="outline" size="sm" onClick={() => void loadTickets()}><RefreshCcw className="size-4" />Refresh</Button>}
+      onLogout={handleLogout}
+    >
+      <div className="space-y-8 px-6 py-10">
         <PageSection
           eyebrow={<Badge variant="outline">Transcript intake</Badge>}
           title={<h1 className="text-3xl font-semibold md:text-4xl">Draft tickets from support calls</h1>}
@@ -676,6 +665,6 @@ export default function TicketsPage({ params }: { params: { id: string } }) {
           </Card>
         </PageSection>
       </div>
-    </PageShell>
+    </AppShell>
   )
 }
