@@ -14,6 +14,7 @@ const scrapeSiteMock = vi.fn()
 const uploadDocumentMock = vi.fn()
 const deleteDocumentMock = vi.fn()
 const listWorkspacesMock = vi.fn()
+const getWorkspaceMock = vi.fn()
 const logoutMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
@@ -34,6 +35,7 @@ vi.mock('@/lib/api/scrape', () => ({
 
 vi.mock('@/lib/api/workspaces', () => ({
   listWorkspaces: (...args: unknown[]) => listWorkspacesMock(...args),
+  getWorkspace: (...args: unknown[]) => getWorkspaceMock(...args),
 }))
 
 vi.mock('@/lib/api/auth', () => ({
@@ -61,8 +63,10 @@ describe('KnowledgeBasePage', () => {
     uploadDocumentMock.mockReset()
     deleteDocumentMock.mockReset()
     listWorkspacesMock.mockReset()
+    getWorkspaceMock.mockReset()
     logoutMock.mockReset()
     listWorkspacesMock.mockResolvedValue({ items: [{ id: 'ws-1', role: 'owner' }], nextCursor: null })
+    getWorkspaceMock.mockResolvedValue({ id: 'ws-1', name: 'Acme Support' })
     listScrapeRunsMock.mockResolvedValue({ items: [], nextCursor: null })
   })
 
@@ -524,5 +528,26 @@ describe('KnowledgeBasePage', () => {
     await Promise.resolve()
 
     expect(listScrapeRunsMock).toHaveBeenNthCalledWith(3, 'ws-1', 'kb-1')
+  })
+
+  it('renders real workspace name in sidebar header', async () => {
+    listDocumentsMock.mockResolvedValue({ items: [], nextCursor: null })
+
+    renderPage()
+
+    expect(await screen.findAllByText('Acme Support')).not.toHaveLength(0)
+    expect(screen.getByText('A')).toBeDefined()
+    expect(screen.queryByText('Workspace')).toBeNull()
+  })
+
+  it('redirects to login when workspace fetch is unauthorized', async () => {
+    listDocumentsMock.mockResolvedValue({ items: [], nextCursor: null })
+    getWorkspaceMock.mockRejectedValue({ statusCode: 401, message: 'Unauthorized' })
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/login')
+    })
   })
 })

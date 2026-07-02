@@ -29,6 +29,7 @@ import {
 import { logout } from '@/lib/api/auth'
 import { getChatMessages, listChatSessions } from '@/lib/api/chat'
 import { isUnauthorized } from '@/lib/api/handle-unauthorized'
+import { getWorkspace } from '@/lib/api/workspaces'
 import { WorkspaceNav } from '@/components/workspace-nav'
 
 type ChatSource = {
@@ -104,6 +105,7 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
   const toastRef = React.useRef(toast)
   const pendingSourcesRef = React.useRef<ChatSource[]>([])
   const pendingSessionIdRef = React.useRef<string | null>(null)
+  const [workspace, setWorkspace] = React.useState<{ id: string; name: string } | null>(null)
   const [sessions, setSessions] = React.useState<ChatSession[]>([])
   const [nextSessionCursor, setNextSessionCursor] = React.useState<string | null>(null)
   const [activeSessionId, setActiveSessionId] = React.useState<string | undefined>()
@@ -248,8 +250,17 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
   })
 
   React.useEffect(() => {
-    void loadSessions()
-  }, [loadSessions])
+    void Promise.all([
+      loadSessions(),
+      getWorkspace(workspaceId).then((data) => {
+        setWorkspace(data)
+      }),
+    ]).catch((err) => {
+      if (isUnauthorized(err)) {
+        router.push('/login')
+      }
+    })
+  }, [loadSessions, router, workspaceId])
 
   const handleLogout = React.useCallback(async () => {
     try {
@@ -367,8 +378,10 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
     <AppShell
       sidebarHeader={({ collapsed }) => (
         <Link href="/workspaces" className="flex items-center gap-2 text-sm font-semibold">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">W</span>
-          {!collapsed ? <span className="truncate">Workspace</span> : null}
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            {workspace?.name?.[0]?.toUpperCase() ?? 'W'}
+          </span>
+          {!collapsed ? <span className="truncate">{workspace?.name ?? 'Workspace'}</span> : null}
         </Link>
       )}
       navigation={({ collapsed }) => <WorkspaceNav workspaceId={workspaceId} collapsed={collapsed} />}
@@ -597,11 +610,13 @@ export default function WorkspaceChatPage({ params }: { params: { id: string } }
             )}
           </div>
 
-          <div className="mt-4">
-            <Button variant="ghost" size="sm" onClick={() => void reload()}>
-              Retry last answer
-            </Button>
-          </div>
+          {messages.some((message) => message.role === 'assistant') ? (
+            <div className="mt-4">
+              <Button variant="ghost" size="sm" onClick={() => void reload()}>
+                Retry last answer
+              </Button>
+            </div>
+          ) : null}
         </Card>
       </div>
     </AppShell>

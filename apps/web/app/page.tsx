@@ -71,7 +71,7 @@ export default function Home() {
       <AppHeader
         className="mt-4 rounded-2xl border border-border/70 bg-background/75"
         brand={
-          <Link href="/" className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
+          <Link href="/" aria-label="Home" className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
             <Sparkles className="size-5" />
           </Link>
         }
@@ -220,7 +220,7 @@ export default function Home() {
         <div className="grid gap-5 lg:grid-cols-3">
           {[
             ['01', 'Bring in source knowledge', 'Upload SOPs, help center docs, macros, and internal notes into single searchable layer.'],
-            ['02', 'Review readiness', 'Dashboard surfaces empty states, onboarding checklist, and confidence-building feedback patterns.'],
+            ['02', 'Review readiness', 'Workspace overview surfaces empty states, onboarding checklist, and confidence-building feedback patterns.'],
             ['03', 'Answer with confidence', 'Chat experience handles loading, retries, and safe failure states so work never feels broken.'],
           ].map(([step, title, description]) => (
             <Card key={step} variant="elevated" className="p-6">

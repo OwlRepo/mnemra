@@ -27,6 +27,7 @@ import { ClipboardCopy, RefreshCcw, Save, Sparkles } from 'lucide-react'
 import { logout } from '@/lib/api/auth'
 import { createTicket, getTicket, listTickets, updateTicket } from '@/lib/api/tickets'
 import { isUnauthorized } from '@/lib/api/handle-unauthorized'
+import { getWorkspace } from '@/lib/api/workspaces'
 import { WorkspaceNav } from '@/components/workspace-nav'
 
 type TicketStatus = 'pending' | 'processing' | 'done' | 'failed'
@@ -143,6 +144,7 @@ export default function TicketsPage({ params }: { params: { id: string } }) {
   const workspaceId = params.id
   const router = useRouter()
   const { toast } = useToast()
+  const [workspace, setWorkspace] = React.useState<{ id: string; name: string } | null>(null)
   const [tickets, setTickets] = React.useState<TicketSummary[]>([])
   const [nextTicketCursor, setNextTicketCursor] = React.useState<string | null>(null)
   const [selectedTicketId, setSelectedTicketId] = React.useState<string | null>(null)
@@ -225,8 +227,21 @@ export default function TicketsPage({ params }: { params: { id: string } }) {
   }, [handleUnauthorized, toast, workspaceId])
 
   React.useEffect(() => {
-    void loadTickets()
-  }, [loadTickets])
+    void Promise.all([
+      loadTickets(),
+      getWorkspace(workspaceId).then((data) => {
+        setWorkspace(data)
+      }).catch((error) => {
+        if (handleUnauthorized(error)) {
+          return null
+        }
+
+        throw error
+      }),
+    ]).catch((error) => {
+      if (handleUnauthorized(error)) return
+    })
+  }, [handleUnauthorized, loadTickets, workspaceId])
 
   const handleLogout = React.useCallback(async () => {
     try {
@@ -368,8 +383,10 @@ export default function TicketsPage({ params }: { params: { id: string } }) {
     <AppShell
       sidebarHeader={({ collapsed }) => (
         <Link href="/workspaces" className="flex items-center gap-2 text-sm font-semibold">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">W</span>
-          {!collapsed ? <span className="truncate">Workspace</span> : null}
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            {workspace?.name?.[0]?.toUpperCase() ?? 'W'}
+          </span>
+          {!collapsed ? <span className="truncate">{workspace?.name ?? 'Workspace'}</span> : null}
         </Link>
       )}
       navigation={({ collapsed }) => <WorkspaceNav workspaceId={workspaceId} collapsed={collapsed} />}

@@ -10,9 +10,12 @@ const pushMock = vi.fn()
 const routerMock = { push: pushMock }
 const listChatSessionsMock = vi.fn()
 const getChatMessagesMock = vi.fn()
+const getWorkspaceMock = vi.fn()
 const setMessagesMock = vi.fn()
 const logoutMock = vi.fn()
 let latestUseChatOptions: any = null
+let mockMessages = [{ id: 'assistant-1', role: 'assistant', content: 'Grounded answer' }]
+let shouldEmitAssistantReply = true
 
 vi.mock('next/navigation', () => ({
   useRouter: () => routerMock,
@@ -22,6 +25,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/api/chat', () => ({
   listChatSessions: (...args: unknown[]) => listChatSessionsMock(...args),
   getChatMessages: (...args: unknown[]) => getChatMessagesMock(...args),
+}))
+
+vi.mock('@/lib/api/workspaces', () => ({
+  getWorkspace: (...args: unknown[]) => getWorkspaceMock(...args),
 }))
 
 vi.mock('@/lib/api/auth', () => ({
@@ -34,9 +41,7 @@ vi.mock('ai/react', async () => {
   return {
     useChat: (options: any) => {
       latestUseChatOptions = options
-      const [messages, setMessagesState] = ReactModule.useState([
-        { id: 'assistant-1', role: 'assistant', content: 'Grounded answer' },
-      ])
+      const [messages, setMessagesState] = ReactModule.useState(mockMessages)
       const firedRef = ReactModule.useRef(false)
 
       ReactModule.useEffect(() => {
@@ -53,26 +58,28 @@ vi.mock('ai/react', async () => {
           }
         })
 
-        void options.onResponse?.(
-          new Response(null, {
-            headers: {
-              'X-Chat-Sources': encodeURIComponent(
-                JSON.stringify([
-                  {
-                    documentId: 'doc-1',
-                    title: 'Support SOP',
-                    sourceUrl: 'https://example.com/sop',
-                    score: 0.88,
-                    snippet: 'Grounded excerpt',
-                  },
-                ]),
-              ),
-              'X-Chat-Session-Id': 'session-1',
-            },
-          }),
-        )
+        if (shouldEmitAssistantReply) {
+          void options.onResponse?.(
+            new Response(null, {
+              headers: {
+                'X-Chat-Sources': encodeURIComponent(
+                  JSON.stringify([
+                    {
+                      documentId: 'doc-1',
+                      title: 'Support SOP',
+                      sourceUrl: 'https://example.com/sop',
+                      score: 0.88,
+                      snippet: 'Grounded excerpt',
+                    },
+                  ]),
+                ),
+                'X-Chat-Session-Id': 'session-1',
+              },
+            }),
+          )
 
-        void options.onFinish?.({ id: 'assistant-1', role: 'assistant', content: 'Grounded answer' })
+          void options.onFinish?.({ id: 'assistant-1', role: 'assistant', content: 'Grounded answer' })
+        }
       }, [options])
 
       return {
@@ -108,9 +115,13 @@ describe('WorkspaceChatPage', () => {
     pushMock.mockReset()
     listChatSessionsMock.mockReset()
     getChatMessagesMock.mockReset()
+    getWorkspaceMock.mockReset()
     setMessagesMock.mockReset()
     logoutMock.mockReset()
     latestUseChatOptions = null
+    mockMessages = [{ id: 'assistant-1', role: 'assistant', content: 'Grounded answer' }]
+    shouldEmitAssistantReply = true
+    getWorkspaceMock.mockResolvedValue({ id: 'ws-1', name: 'Acme Support' })
     listChatSessionsMock.mockResolvedValue({
       items: [{ id: 'session-1', title: 'Billing help', createdAt: '', updatedAt: '' }],
       nextCursor: null,
@@ -316,5 +327,33 @@ describe('WorkspaceChatPage', () => {
     expect(await screen.findByText('Workspace assistant')).toBeDefined()
     expect(screen.getAllByRole('button', { name: 'New chat' }).length).toBeGreaterThan(0)
     expect(screen.getByRole('link', { name: 'Chat' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('renders real workspace name in sidebar header', async () => {
+    renderPage()
+
+    expect(await screen.findAllByText('Acme Support')).not.toHaveLength(0)
+    expect(screen.getByText('A')).toBeDefined()
+    expect(screen.queryByText('Workspace')).toBeNull()
+  })
+
+  it('redirects to login when workspace fetch is unauthorized', async () => {
+    getWorkspaceMock.mockRejectedValue({ statusCode: 401, message: 'Unauthorized' })
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/login')
+    })
+  })
+
+  it('hides retry button when there is no assistant answer yet', async () => {
+    mockMessages = []
+    shouldEmitAssistantReply = false
+
+    renderPage()
+
+    expect(await screen.findByText('No citations yet')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Retry last answer' })).toBeNull()
   })
 })

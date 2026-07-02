@@ -30,7 +30,7 @@ import {
 import { logout } from "@/lib/api/auth";
 import { listScrapeRuns, scrapeSite } from "@/lib/api/scrape";
 import { isUnauthorized } from "@/lib/api/handle-unauthorized";
-import { listWorkspaces } from "@/lib/api/workspaces";
+import { getWorkspace, listWorkspaces } from "@/lib/api/workspaces";
 import { WorkspaceNav } from "@/components/workspace-nav";
 
 type DocumentRow = {
@@ -129,6 +129,10 @@ export default function KnowledgeBasePage({
     React.useState<string | null>(null);
   const [membership, setMembership] =
     React.useState<WorkspaceMembership | null>(null);
+  const [workspace, setWorkspace] = React.useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isScrapeRunsLoading, setIsScrapeRunsLoading] = React.useState(true);
   const [pendingDelete, setPendingDelete] = React.useState<DocumentRow | null>(
@@ -307,8 +311,24 @@ export default function KnowledgeBasePage({
   }, [router, workspaceId]);
 
   React.useEffect(() => {
-    void Promise.all([loadDocuments(), loadMembership(), loadScrapeRuns()]);
-  }, [loadDocuments, loadMembership, loadScrapeRuns]);
+    void Promise.all([
+      loadDocuments(),
+      loadMembership(),
+      loadScrapeRuns(),
+      getWorkspace(workspaceId)
+        .then((data) => {
+          setWorkspace(data);
+        })
+        .catch((err) => {
+          if (isUnauthorized(err)) {
+            router.push("/login");
+            return null;
+          }
+
+          throw err;
+        }),
+    ]);
+  }, [loadDocuments, loadMembership, loadScrapeRuns, router, workspaceId]);
 
   const handleLogout = React.useCallback(async () => {
     try {
@@ -525,8 +545,12 @@ export default function KnowledgeBasePage({
     <AppShell
       sidebarHeader={({ collapsed }) => (
         <Link href="/workspaces" className="flex items-center gap-2 text-sm font-semibold">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">W</span>
-          {!collapsed ? <span className="truncate">Workspace</span> : null}
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            {workspace?.name?.[0]?.toUpperCase() ?? "W"}
+          </span>
+          {!collapsed ? (
+            <span className="truncate">{workspace?.name ?? "Workspace"}</span>
+          ) : null}
         </Link>
       )}
       navigation={({ collapsed }) => (

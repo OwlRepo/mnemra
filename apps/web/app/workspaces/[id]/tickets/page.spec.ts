@@ -11,6 +11,7 @@ const routerMock = { push: pushMock }
 const listTicketsMock = vi.fn()
 const createTicketMock = vi.fn()
 const getTicketMock = vi.fn()
+const getWorkspaceMock = vi.fn()
 const updateTicketMock = vi.fn()
 const logoutMock = vi.fn()
 
@@ -24,6 +25,10 @@ vi.mock('@/lib/api/tickets', () => ({
   createTicket: (...args: unknown[]) => createTicketMock(...args),
   getTicket: (...args: unknown[]) => getTicketMock(...args),
   updateTicket: (...args: unknown[]) => updateTicketMock(...args),
+}))
+
+vi.mock('@/lib/api/workspaces', () => ({
+  getWorkspace: (...args: unknown[]) => getWorkspaceMock(...args),
 }))
 
 vi.mock('@/lib/api/auth', () => ({
@@ -48,8 +53,10 @@ describe('TicketsPage', () => {
     listTicketsMock.mockReset()
     createTicketMock.mockReset()
     getTicketMock.mockReset()
+    getWorkspaceMock.mockReset()
     updateTicketMock.mockReset()
     logoutMock.mockReset()
+    getWorkspaceMock.mockResolvedValue({ id: 'ws-1', name: 'Acme Support' })
     vi.stubGlobal('navigator', {
       clipboard: {
         writeText: vi.fn().mockResolvedValue(undefined),
@@ -515,6 +522,27 @@ describe('TicketsPage', () => {
 
     await waitFor(() => {
       expect(listTicketsMock).toHaveBeenNthCalledWith(3, 'ws-1')
+    })
+  })
+
+  it('renders real workspace name in sidebar header', async () => {
+    listTicketsMock.mockResolvedValue({ items: [], nextCursor: null })
+
+    renderPage()
+
+    expect(await screen.findAllByText('Acme Support')).not.toHaveLength(0)
+    expect(screen.getByText('A')).toBeDefined()
+    expect(screen.queryByText('Workspace')).toBeNull()
+  })
+
+  it('redirects to login when workspace fetch is unauthorized', async () => {
+    listTicketsMock.mockResolvedValue({ items: [], nextCursor: null })
+    getWorkspaceMock.mockRejectedValue({ statusCode: 401, message: 'Unauthorized' })
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/login')
     })
   })
 })
